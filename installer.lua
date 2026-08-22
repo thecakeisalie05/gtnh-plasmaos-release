@@ -208,8 +208,8 @@ assert(atomic("/etc/rc.d/plasmaos.lua", loader))
 filesystem.remove("/boot/99-plasmaos.lua")
 local rcConfig = read("/etc/rc.cfg") or ""
 if not rcConfig:find('"plasmaos"', 1, true) then
-  local updated, count = rcConfig:gsub("enabled%s*=%s*(%b{})", function(list)
-    return list:sub(1, -2) .. (list == "{}" and "" or ", ") .. '"plasmaos"}'
+  local updated, count = rcConfig:gsub("(enabled%s*=%s*)(%b{})", function(prefix, list)
+    return prefix .. list:sub(1, -2) .. (list == "{}" and "" or ", ") .. '"plasmaos"}'
   end, 1)
   if count == 0 then updated = rcConfig .. "\nenabled = {\"plasmaos\"}\n" end
   assert(atomic("/etc/rc.cfg", updated))
