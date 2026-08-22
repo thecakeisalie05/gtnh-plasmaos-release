@@ -60,6 +60,7 @@ function io.open(path, mode)
   return file
 end
 _G.io = io
+_G.PLASMAOS_BOOT_FILESYSTEM = filesystem
 local packageTable = package or {path = "", loaded = {}}
 packageTable.path = root .. "/src/?.lua;" .. root .. "/src/?/init.lua;" .. (packageTable.path or "")
 _G.package = packageTable

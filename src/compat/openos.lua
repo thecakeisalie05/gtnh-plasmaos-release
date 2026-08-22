@@ -1,9 +1,11 @@
 local OpenOS = {}
 
 function OpenOS.load()
-  local component = require("component")
-  local computer = require("computer")
-  local filesystem = require("filesystem")
+  -- The stage-one PlasmaOS loader runs before OpenOS creates require().
+  -- Prefer its firmware bridges, then retain normal OpenOS compatibility.
+  local component = _G.component or require("component")
+  local computer = _G.computer or require("computer")
+  local filesystem = _G.PLASMAOS_BOOT_FILESYSTEM or require("filesystem")
   local shellOk, shell = pcall(require, "shell")
 
   local components = {
