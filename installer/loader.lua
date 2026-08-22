@@ -1,4 +1,4 @@
--- OpenOS boot hook. Boot scripts run after standard libraries are available.
+-- OpenOS RC service: PlasmaOS starts after the normal OpenOS runtime is ready.
 local function read(path)
   local handle = io.open(path, "rb")
   if not handle then return nil end
@@ -7,7 +7,7 @@ local function read(path)
   return data and data:gsub("%s+$", "")
 end
 
-local function startPlasmaOS()
+function start()
   io.write("[PlasmaOS] locating active release...\n")
   local active = assert(read("/system/active"), "PlasmaOS active version pointer is missing")
   local root = "/system/versions/" .. active
@@ -18,5 +18,3 @@ local function startPlasmaOS()
   io.write("[PlasmaOS] starting kernel...\n")
   return chunk(root)
 end
-
-startPlasmaOS()

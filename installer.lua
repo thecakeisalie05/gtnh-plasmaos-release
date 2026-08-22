@@ -203,8 +203,17 @@ if oldActive then assert(atomic("/system/last-good", oldActive)) end
 assert(atomic("/system/active", versionName))
 assert(atomic("/system/boot-attempts", "0"))
 local loader = assert(read(final .. "/installer/loader.lua"), "stage-1 loader absent")
-mkdir("/boot")
-assert(atomic("/boot/99-plasmaos.lua", loader))
+mkdir("/etc"); mkdir("/etc/rc.d")
+assert(atomic("/etc/rc.d/plasmaos.lua", loader))
+filesystem.remove("/boot/99-plasmaos.lua")
+local rcConfig = read("/etc/rc.cfg") or ""
+if not rcConfig:find('"plasmaos"', 1, true) then
+  local updated, count = rcConfig:gsub("enabled%s*=%s*(%b{})", function(list)
+    return list:sub(1, -2) .. (list == "{}" and "" or ", ") .. '"plasmaos"}'
+  end, 1)
+  if count == 0 then updated = rcConfig .. "\nenabled = {\"plasmaos\"}\n" end
+  assert(atomic("/etc/rc.cfg", updated))
+end
 mkdir("/etc/plasmaos"); mkdir("/home")
 assert(atomic("/etc/plasmaos/install-profile",profile))
 io.write("PlasmaOS " .. manifest.version .. " installed transactionally. Rebooting.\n")
