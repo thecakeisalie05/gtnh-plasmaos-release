@@ -3,8 +3,55 @@ local component = require("component")
 local computer = require("computer")
 local filesystem = require("filesystem")
 local shell = require("shell")
-local bit = bit32
 local unpack = table.unpack or unpack
+
+local function portableBits()
+  if bit32 then return bit32 end
+  local nativeFactory = load([[
+    local MASK = 0xffffffff
+    local function norm(value) return value & MASK end
+    local function band(value, ...)
+      value = norm(value)
+      for index = 1, select("#", ...) do value = value & select(index, ...) end
+      return norm(value)
+    end
+    local function bxor(value, ...)
+      value = norm(value)
+      for index = 1, select("#", ...) do value = value ~ select(index, ...) end
+      return norm(value)
+    end
+    local function rrotate(value, count)
+      count = count % 32; value = norm(value)
+      if count == 0 then return value end
+      return norm((value >> count) | (value << (32 - count)))
+    end
+    return {band=band, bxor=bxor, bnot=function(value) return norm(~value) end,
+      rshift=function(value, count) return norm(value) >> count end, rrotate=rrotate}
+  ]])
+  if nativeFactory then
+    local ok, native = pcall(nativeFactory)
+    if ok then return native end
+  end
+  local MOD = 4294967296
+  local function norm(value) return value % MOD end
+  local function binary(a, b, exclusive)
+    a, b = norm(a), norm(b); local result, place = 0, 1
+    for _ = 1, 32 do
+      local aa, bb = a % 2, b % 2
+      if exclusive and aa ~= bb or not exclusive and aa == 1 and bb == 1 then result = result + place end
+      a, b, place = math.floor(a / 2), math.floor(b / 2), place * 2
+    end
+    return result
+  end
+  return {
+    band=function(a, ...) for i=1,select("#", ...) do a=binary(a,select(i,...),false) end return norm(a) end,
+    bxor=function(a, ...) for i=1,select("#", ...) do a=binary(a,select(i,...),true) end return norm(a) end,
+    bnot=function(a) return 4294967295-norm(a) end,
+    rshift=function(a,n) return math.floor(norm(a)/2^n) end,
+    rrotate=function(a,n) n=n%32;a=norm(a);return norm(math.floor(a/2^n)+(a%2^n)*2^(32-n)) end,
+  }
+end
+local bit = portableBits()
 
 local DEFAULT_BASE_URL = "https://raw.githubusercontent.com/thecakeisalie05/gtnh-plasmaos-release/main"
 local MANIFEST_NAME = "manifest.txt"
@@ -92,7 +139,6 @@ local profile = option("--profile") or (not component.isAvailable("gpu") and "se
 assert(profile=="full"or profile=="compact"or profile=="server","profile must be full, compact, or server")
 assert(DEFAULT_BASE_URL:sub(1, 1) ~= "@" or offline or option("--base-url"),
   "installer is unpublished; pass --base-url or --offline")
-assert(bit, "Lua bit32 support is required")
 assert(not filesystem.isReadOnly("/"), "target filesystem is read-only")
 assert(computer.totalMemory() >= 196608, "at least 192 KiB RAM is required for installation")
 mkdir("/var/tmp"); mkdir("/system"); mkdir("/system/versions")

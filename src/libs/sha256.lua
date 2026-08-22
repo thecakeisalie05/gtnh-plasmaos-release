@@ -1,5 +1,4 @@
-local bit = bit32
-assert(bit, "SHA-256 requires Lua 5.2 bit32")
+local bit = require("libs.bitops")
 
 local band, bxor, bnot = bit.band, bit.bxor, bit.bnot
 local rshift, rrotate = bit.rshift, bit.rrotate
