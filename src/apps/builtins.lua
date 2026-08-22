@@ -95,7 +95,11 @@ end
 
 local function dataApp(spec)
   return function(context)local m={selected=1,refreshInterval=spec.interval or 2,status="Live"}
-    function m:items()local ok,items=pcall(spec.provider,context.services,context);return ok and items or{},ok and nil or items end
+    function m:items()
+      local ok,items=pcall(spec.provider,context.services,context)
+      if ok then return items,nil end
+      return {},items
+    end
     function m:render()local items,err=self:items();local out={row("  "..spec.title,{style="header",pad=false}),row("  Refresh    Details"..(spec.actionLabel and("    "..spec.actionLabel)or""),{style="toolbar",pad=false})};if err then out[#out+1]=row("  Data source error: "..tostring(err),{style="danger"})elseif#items==0 then for _,v in ipairs(emptyState(spec.emptyTitle or"Nothing to show",spec.emptyMessage or"No data is currently available."))do out[#out+1]=v end else out[#out+1]=row("  "..(spec.columns or"NAME                         STATUS          DETAIL"),{backgroundRole="field",role="secondary"});for i,item in ipairs(items)do local text=type(item)=="table"and(item.text or table.concat(item,"   "))or tostring(item);out[#out+1]=row("  "..text,{selected=i==self.selected})end end;out[#out+1]=row("  "..self.status.."    Up/Down: select    Enter: action",{style="status",pad=false});return out end
     function m:onEvent(event)if event.name=="key_down"then if event.code==200 then self.selected=math.max(1,self.selected-1)elseif event.code==208 then self.selected=self.selected+1 elseif event.code==28 and spec.action then local items=self:items();local ok,result=spec.action(context.services,context,items[self.selected]);self.status=ok and tostring(result or"Action completed")or tostring(result)end elseif event.name=="touch"and event.localY>=4 then self.selected=math.max(1,event.localY-3)end end
     function m:tick()end;return m end
