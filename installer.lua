@@ -90,7 +90,8 @@ local offline = option("--offline")
 local profile = option("--profile") or (not component.isAvailable("gpu") and "server"
   or computer.totalMemory() < 524288 and "compact" or "full")
 assert(profile=="full"or profile=="compact"or profile=="server","profile must be full, compact, or server")
-assert(baseUrl ~= "https://raw.githubusercontent.com/thecakeisalie05/gtnh-plasmaos-release/main" or offline, "installer is unpublished; pass --base-url or --offline")
+assert(DEFAULT_BASE_URL:sub(1, 1) ~= "@" or offline or option("--base-url"),
+  "installer is unpublished; pass --base-url or --offline")
 assert(bit, "Lua bit32 support is required")
 assert(not filesystem.isReadOnly("/"), "target filesystem is read-only")
 assert(computer.totalMemory() >= 196608, "at least 192 KiB RAM is required for installation")
