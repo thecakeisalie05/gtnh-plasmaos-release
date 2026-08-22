@@ -135,9 +135,9 @@ function WindowManager:hit(x, y)
       and y >= window.y and y < window.y + window.h then
       local localX, localY = x - window.x + 1, y - window.y + 1
       local area = localY == 1 and "title" or "content"
-      if localY == 1 and localX >= window.w - 2 then area = "close"
-      elseif localY == 1 and localX >= window.w - 5 then area = "maximize"
-      elseif localY == 1 and localX >= window.w - 8 then area = "minimize"
+      if localY == 1 and localX >= window.w - 4 then area = "close"
+      elseif localY == 1 and localX >= window.w - 9 then area = "maximize"
+      elseif localY == 1 and localX >= window.w - 14 then area = "minimize"
       elseif localX == window.w and localY == window.h then area = "resize" end
       return window, area, localX, localY
     end

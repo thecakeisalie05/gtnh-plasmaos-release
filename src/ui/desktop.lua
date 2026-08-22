@@ -67,7 +67,11 @@ function Desktop:_window(commands, dirty, window, focused, colors)
   if shadow then append(commands, {op = "fill", x = shadow.x, y = shadow.y, w = shadow.w,
     h = shadow.h, char = " ", background = colors.shadow}) end
   append(commands, {op = "fill", x = body.x, y = body.y, w = body.w, h = body.h,
-    char = " ", background = colors.surface, foreground = colors.foreground})
+    char = " ", background = focused and colors.border or colors.titleInactive, foreground = colors.foreground})
+  local interior = intersection(dirty, {x = window.x + 1, y = window.y + 1,
+    w = math.max(1, window.w - 2), h = math.max(1, window.h - 2)})
+  if interior then append(commands, {op = "fill", x = interior.x, y = interior.y,
+    w = interior.w, h = interior.h, char = " ", background = colors.surface}) end
   local titleRect = intersection(dirty, {x = window.x, y = window.y, w = window.w, h = 1})
   if titleRect then append(commands, {op = "fill", x = titleRect.x, y = titleRect.y,
     w = titleRect.w, h = 1, char = " ", background = focused and colors.titleActive or colors.titleInactive}) end
@@ -75,28 +79,46 @@ function Desktop:_window(commands, dirty, window, focused, colors)
   clippedText(commands, dirty, window.x, window.y, title, colors.chromeText,
     focused and colors.titleActive or colors.titleInactive)
   local controlY = window.y
-  local controls = {{x = window.x + window.w - 8, text = " - ", bg = colors.titleInactive},
-    {x = window.x + window.w - 5, text = " + ", bg = colors.selection},
-    {x = window.x + window.w - 2, text = " x ", bg = colors.error}}
+  local controls = {{x = window.x + window.w - 14, text = " MIN ", bg = colors.titleInactive},
+    {x = window.x + window.w - 9, text = " MAX ", bg = colors.selection},
+    {x = window.x + window.w - 4, text = "  X  ", bg = colors.error}}
   for _, control in ipairs(controls) do
-    local controlRect = intersection(dirty, {x = control.x, y = controlY, w = 3, h = 1})
+    local controlRect = intersection(dirty, {x = control.x, y = controlY, w = 5, h = 1})
     if controlRect then append(commands, {op = "fill", x = controlRect.x, y = controlY,
       w = controlRect.w, h = 1, char = " ", background = control.bg}) end
     clippedText(commands, dirty, control.x, controlY, control.text, colors.chromeText, control.bg)
   end
   local lines = window.render and window.render(window) or {}
-  for index = 1, math.min(#lines, window.h - 1) do
+  for index = 1, math.min(#lines, window.h - 2) do
     local row = type(lines[index]) == "table" and lines[index] or {text = tostring(lines[index])}
     local value = tostring(row.text or "")
     local fg, bg = rowColors(row, colors)
-    local rowRect = intersection(dirty, {x = window.x, y = window.y + index, w = window.w, h = 1})
+    local rowRect = intersection(dirty, {x = window.x + 1, y = window.y + index,
+      w = math.max(1, window.w - 2), h = 1})
     if rowRect then append(commands, {op = "fill", x = rowRect.x, y = rowRect.y,
       w = rowRect.w, h = 1, char = " ", background = bg, foreground = fg}) end
     local pad = row.pad == false and 0 or (row.indent or 1)
-    local available = math.max(0, window.w - pad - 1)
-    local x = window.x + pad
-    if row.align == "right" then x = math.max(window.x, window.x + window.w - #value - 1) end
-    clippedText(commands, dirty, x, window.y + index, value:sub(1, available), fg, bg)
+    local available = math.max(0, window.w - pad - 2)
+    local x = window.x + 1 + pad
+    if row.align == "right" then x = math.max(window.x + 1, window.x + window.w - #value - 1) end
+    if row.segments then
+      local segmentX = window.x + 2
+      for segmentIndex, segment in ipairs(row.segments) do
+        local text = tostring(segment.text or "")
+        local segmentFg = (segment.role and colors[segment.role]) or colors.foreground
+        local segmentBg = (segment.backgroundRole and colors[segment.backgroundRole])
+          or (segment.primary and colors.titleActive or colors.raised)
+        if segment.disabled then segmentFg, segmentBg = colors.secondary, colors.field end
+        local segmentRect = intersection(dirty, {x = segmentX, y = window.y + index, w = #text, h = 1})
+        if segmentRect then append(commands, {op = "fill", x = segmentRect.x, y = segmentRect.y,
+          w = segmentRect.w, h = 1, char = " ", background = segmentBg}) end
+        clippedText(commands, dirty, segmentX, window.y + index, text, segmentFg, segmentBg)
+        segmentX = segmentX + #text + 1
+        if segmentX >= window.x + window.w - 1 then break end
+      end
+    else
+      clippedText(commands, dirty, x, window.y + index, value:sub(1, available), fg, bg)
+    end
   end
 end
 
@@ -105,18 +127,23 @@ function Desktop:_panel(commands, dirty, endpoint, session, colors)
   local panel = intersection(dirty, {x = 1, y = y, w = endpoint.width, h = 1}); if not panel then return end
   append(commands, {op = "fill", x = panel.x, y = y, w = panel.w, h = 1,
     char = " ", background = colors.panel, foreground = colors.foreground})
-  local tasks = {}
-  for _, window in ipairs(session.windowManager:list()) do
-    tasks[#tasks + 1] = (window.id == session.focusedWindow and "[" or " ") .. window.title:sub(1, 9)
-      .. (window.id == session.focusedWindow and "]" or " ")
-  end
+  local windows = session.windowManager:list()
   local plasmaWidth = math.min(12, endpoint.width)
   local plasmaRect = intersection(dirty, {x = 1, y = y, w = plasmaWidth, h = 1})
   if plasmaRect then append(commands, {op = "fill", x = plasmaRect.x, y = y, w = plasmaRect.w,
     h = 1, char = " ", background = colors.titleActive}) end
   clippedText(commands, dirty, 2, y, "PLASMA", colors.chromeText, colors.titleActive)
-  local taskText = table.concat(tasks, " ")
-  clippedText(commands, dirty, plasmaWidth + 2, y, taskText, colors.foreground, colors.panel)
+  local taskX, taskWidth = plasmaWidth + 2, 14
+  for _, window in ipairs(windows) do
+    local active = window.id == session.focusedWindow
+    local background = active and colors.selection or colors.raised
+    local taskRect = intersection(dirty, {x = taskX, y = y, w = taskWidth, h = 1})
+    if taskRect then append(commands, {op = "fill", x = taskRect.x, y = y, w = taskRect.w,
+      h = 1, char = " ", background = background}) end
+    clippedText(commands, dirty, taskX + 1, y, window.title:sub(1, taskWidth - 2),
+      active and colors.chromeText or colors.foreground, background)
+    taskX = taskX + taskWidth + 1
+  end
   local health = self.registry:get(session.endpointId)
   local clock = os.date and os.date("%H:%M") or tostring(math.floor(os.clock()))
   local right = (health and health.lowBandwidth and " REMOTE " or " LOCAL ") .. clock
@@ -249,8 +276,17 @@ end
 
 function Desktop:handle(session, event)
   local endpoint = self.registry:get(session.endpointId)
-  if event.name == "touch" and endpoint and event.y == endpoint.height and event.x <= 3 then
-    self:toggleLauncher(session); return
+  if event.name == "touch" and endpoint and event.y == endpoint.height then
+    if event.x <= 12 then self:toggleLauncher(session); return end
+    local taskX, taskWidth = math.min(12, endpoint.width) + 2, 14
+    for _, window in ipairs(session.windowManager:list()) do
+      if event.x >= taskX and event.x < taskX + taskWidth then
+        if window.state == "minimized" then session.windowManager:restore(window.id)
+        else session.windowManager:focus(window.id) end
+        return
+      end
+      taskX = taskX + taskWidth + 1
+    end
   end
   return session.windowManager:handle(event)
 end

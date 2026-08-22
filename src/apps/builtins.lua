@@ -7,6 +7,23 @@ local function charFrom(event, unicode)
 end
 
 local function row(text, options) options=options or{};options.text=tostring(text or"");return options end
+local function toolbar(labels)
+  local segments={}
+  for index,label in ipairs(labels)do
+    local value=type(label)=="table"and label or{text=label}
+    segments[#segments+1]={text=" "..tostring(value.text or"").." ",
+      primary=value.primary~=nil and value.primary or index==1,
+      role=value.role,backgroundRole=value.backgroundRole,disabled=value.disabled}
+  end
+  return row("",{style="toolbar",segments=segments,pad=false})
+end
+local function buttonAt(labels,x)
+  local position=2
+  for index,label in ipairs(labels)do
+    local text=type(label)=="table"and label.text or label;local width=#tostring(text or"")+2
+    if x>=position and x<position+width then return index end;position=position+width+1
+  end
+end
 local function clamp(value,low,high)return math.max(low,math.min(high,value))end
 local function tail(value,size)value=tostring(value or"");return #value>size and value:sub(-size)or value end
 local function nameOf(path)return path:match("([^/]+)$")or path end
@@ -26,7 +43,8 @@ local function explorer(context)
   end
   function m:up()local parent=self.path:match("^(.*)/[^/]+/?$")or"/";self.path=parent==""and"/"or parent;self.selected,self.scroll=1,1;self:refresh()end
   function m:render(width,height)
-    local out={row("  "..self.path,{style="header",pad=false}),row("  Up    Open    New file    Hidden: "..(self.hidden and"ON"or"OFF").."    Refresh",{style="toolbar",pad=false}),
+    local buttons={"Up","Open","New file","Hidden "..(self.hidden and"ON"or"OFF"),"Refresh"}
+    local out={row("  "..self.path,{style="header",pad=false}),toolbar(buttons),
       row(string.format("  %-7s %-"..math.max(10,width-25).."s %s","TYPE","NAME","ACCESS"),{backgroundRole="field",role="secondary",pad=false})}
     local room=math.max(1,height-4);if self.selected<self.scroll then self.scroll=self.selected end;if self.selected>=self.scroll+room then self.scroll=self.selected-room+1 end
     for index=self.scroll,math.min(#self.entries,self.scroll+room-1)do local item=self.entries[index];local kind=item.directory and"Folder"or((item.name:match("%.([^%.]+)$")or"File"):upper())
@@ -41,6 +59,8 @@ local function explorer(context)
       elseif event.code==211 then local item=self.entries[self.selected];if item then local ok,err=s.files:trashPath(item.path);self.status=ok and("Moved "..item.name.." to Trash")or tostring(err);self:refresh()end
       elseif ch=="h"then self.hidden=not self.hidden;self:refresh()elseif ch=="r"then self:refresh()
       elseif ch=="n"then local ok,err=s.files:createFile(s.fs.concat(self.path,"New File.lua"));self.status=ok and"Created New File.lua"or tostring(err);self:refresh()end
+    elseif event.name=="touch"and event.localY==2 then local action=buttonAt({"Up","Open","New file","Hidden "..(self.hidden and"ON"or"OFF"),"Refresh"},event.localX)
+      if action==1 then self:up()elseif action==2 then self:open()elseif action==3 then local ok,err=s.files:createFile(s.fs.concat(self.path,"New File.lua"));self.status=ok and"Created New File.lua"or tostring(err);self:refresh()elseif action==4 then self.hidden=not self.hidden;self:refresh()elseif action==5 then self:refresh()end
     elseif event.name=="touch"and event.localY>=4 then local index=self.scroll+event.localY-4;if self.entries[index]then self.selected=index end
     elseif event.name=="scroll"then self.selected=clamp(self.selected+(event.button or 0),1,math.max(1,#self.entries))end
   end
@@ -64,7 +84,7 @@ end
 
 local function taskManager(context)
   local s=context.services;local m={tab=1,selected=1,refreshInterval=.75};local names={"Processes","Performance","Services","Hardware","Sessions","Logs"}
-  function m:render(width,height)local out={row("  System Monitor",{style="header",pad=false}),row("  "..table.concat(names,"   "),{style="toolbar",pad=false}),row("  "..names[self.tab].."    1-6: views    K: end/restart",{backgroundRole="field",role="accent",pad=false})}
+  function m:render(width,height)local tabs={};for index,name in ipairs(names)do tabs[index]={text=name,primary=index==self.tab}end;local out={row("  System Monitor",{style="header",pad=false}),toolbar(tabs),row("  "..names[self.tab].."    1-6: views    K: end/restart",{backgroundRole="field",role="accent",pad=false})}
     if self.tab==1 then out[#out+1]=row("  PID   STATE       APPLICATION        PROCESS",{role="secondary"});for i,p in ipairs(s.scheduler:list())do out[#out+1]=row(string.format("  %3d   %-10s  %-17s  %s",p.pid,p.state,p.appId:sub(1,17),p.name),{selected=i==self.selected})end
     elseif self.tab==2 then local mem=s.memory:sample();local used=math.max(0,mem.total-mem.free);out[#out+1]=row(string.format("  Memory     %d used / %d total     %s",used,mem.total,mem.state),{style=mem.state=="normal"and"success"or"danger"});out[#out+1]=row(string.format("  Scheduler  cycle %d     ready queue %d",s.scheduler.cycle,s.scheduler.ready:size()),{backgroundRole="raised"});for _,e in ipairs(s.registry:list())do local x=s.compositor:metrics(e.id);out[#out+1]=row(string.format("  Display    %dx%d     frames %d     queue %d     errors %d",e.width,e.height,x.renderedFrames,x.queueDepth,x.componentErrors))end
     elseif self.tab==3 then out[#out+1]=row("  SERVICE                    STATE        RESTARTS",{role="secondary"});for i,v in ipairs(s.supervisor:list())do out[#out+1]=row(string.format("  %-26s %-12s %d",v.id,v.state,v.restartCount),{selected=i==self.selected})end
@@ -72,7 +92,7 @@ local function taskManager(context)
     elseif self.tab==5 then for i,v in ipairs(s.sessions:list())do local e=s.registry:get(v.endpointId);out[#out+1]=row(string.format("  %-12s %-9s  %dx%d  input queue %d",v.id,v.state,e and e.width or 0,e and e.height or 0,v.inputQueueDepth),{selected=i==self.selected})end
     else local logs=s.log:list();for i=math.max(1,#logs-math.max(1,height-4)),#logs do local v=logs[i];out[#out+1]=row(string.format("  %-7s %-12s %s",v.level,v.source,v.message),{role=v.level=="error"and"error"or"foreground"})end end
     out[#out+1]=row("  Live data   refresh 0.75 s",{style="status",pad=false});return out end
-  function m:onEvent(event)if event.name~="key_down"then return end;local ch=charFrom(event,s.unicode);local number=ch and tonumber(ch);if number and number>=1 and number<=6 then self.tab,self.selected=number,1 elseif event.code==200 then self.selected=math.max(1,self.selected-1)elseif event.code==208 then self.selected=self.selected+1 elseif ch and ch:lower()=="k"then if self.tab==1 then local v=s.scheduler:list()[self.selected];if v and v.pid~=context.api.pid()then s.scheduler:kill(v.pid,"System Monitor")end elseif self.tab==5 then local v=s.sessions:list()[self.selected];if v then s.sessions:restart(v.id)end end end end
+  function m:onEvent(event)if event.name=="touch"and event.localY==2 then local tab=buttonAt(names,event.localX);if tab then self.tab,self.selected=tab,1 end;return elseif event.name~="key_down"then return end;local ch=charFrom(event,s.unicode);local number=ch and tonumber(ch);if number and number>=1 and number<=6 then self.tab,self.selected=number,1 elseif event.code==200 then self.selected=math.max(1,self.selected-1)elseif event.code==208 then self.selected=self.selected+1 elseif ch and ch:lower()=="k"then if self.tab==1 then local v=s.scheduler:list()[self.selected];if v and v.pid~=context.api.pid()then s.scheduler:kill(v.pid,"System Monitor")end elseif self.tab==5 then local v=s.sessions:list()[self.selected];if v then s.sessions:restart(v.id)end end end end
   function m:tick()end;return m
 end
 
@@ -89,8 +109,9 @@ local function editor(context)
   local s,path=context.services,context.options.path or"/home/player/untitled.lua";local data=s.fs.read(path)or"";local m={path=path,lines={},row=1,column=1,scroll=1,undo={},redo={},status="Ready"};for line in(data.."\n"):gmatch("(.-)\n")do m.lines[#m.lines+1]=line end;if#m.lines==0 then m.lines[1]=""end
   function m:snapshot()local v=table.concat(self.lines,"\n");self.undo[#self.undo+1]=v;if#self.undo>64 then table.remove(self.undo,1)end;self.redo={}end
   function m:save()local ok,err=s.transaction:write(self.path,table.concat(self.lines,"\n"),function()return true end);self.status=ok and"Saved successfully"or("Save failed: "..tostring(err))end
-  function m:render(width,height)local out={row("  "..nameOf(self.path).."  -  Plasma Editor",{style="header",pad=false}),row("  Save    Undo    Find    "..self.path,{style="toolbar",pad=false})};local room=math.max(1,height-3);if self.row<self.scroll then self.scroll=self.row end;if self.row>=self.scroll+room then self.scroll=self.row-room+1 end;for i=self.scroll,math.min(#self.lines,self.scroll+room-1)do local mark=i==self.row and">"or" ";local text=self.lines[i];if i==self.row then text=text:sub(1,self.column-1).."|"..text:sub(self.column)end;out[#out+1]=row(string.format(" %s%4d  %s",mark,i,text:sub(1,math.max(1,width-9))),{selected=i==self.row,backgroundRole="field",pad=false})end;out[#out+1]=row(string.format("  Ln %d, Col %d    %s    Ctrl+S save",self.row,self.column,self.status),{style="status",pad=false});return out end
-  function m:onEvent(event)if event.name~="key_down"then return end;local mods=s.desktop.modifiers[context.session.id]or{};local ch=charFrom(event,s.unicode);if mods.ctrl and ch and ch:lower()=="s"then self:save();return end;if mods.ctrl and ch and ch:lower()=="z"and#self.undo>0 then self.redo[#self.redo+1]=table.concat(self.lines,"\n");local value=table.remove(self.undo);self.lines={};for line in(value.."\n"):gmatch("(.-)\n")do self.lines[#self.lines+1]=line end;return end;if event.code==200 then self.row=math.max(1,self.row-1);self.column=math.min(self.column,#self.lines[self.row]+1)elseif event.code==208 then self.row=math.min(#self.lines,self.row+1);self.column=math.min(self.column,#self.lines[self.row]+1)elseif event.code==203 then self.column=math.max(1,self.column-1)elseif event.code==205 then self.column=math.min(#self.lines[self.row]+1,self.column+1)elseif event.code==14 then self:snapshot();local line=self.lines[self.row];if self.column>1 then self.lines[self.row]=line:sub(1,self.column-2)..line:sub(self.column);self.column=self.column-1 end elseif event.code==28 then self:snapshot();local line=self.lines[self.row];local rest=line:sub(self.column);self.lines[self.row]=line:sub(1,self.column-1);table.insert(self.lines,self.row+1,rest);self.row,self.column=self.row+1,1 elseif ch and ch:byte()>=32 then self:snapshot();local line=self.lines[self.row];self.lines[self.row]=line:sub(1,self.column-1)..ch..line:sub(self.column);self.column=self.column+#ch end end;return m
+  function m:undoOnce()if#self.undo==0 then return end;self.redo[#self.redo+1]=table.concat(self.lines,"\n");local value=table.remove(self.undo);self.lines={};for line in(value.."\n"):gmatch("(.-)\n")do self.lines[#self.lines+1]=line end;self.status="Undo applied"end
+  function m:render(width,height)local out={row("  "..nameOf(self.path).."  -  Plasma Editor",{style="header",pad=false}),toolbar({"Save","Undo","Find"})};local room=math.max(1,height-3);if self.row<self.scroll then self.scroll=self.row end;if self.row>=self.scroll+room then self.scroll=self.row-room+1 end;for i=self.scroll,math.min(#self.lines,self.scroll+room-1)do local mark=i==self.row and">"or" ";local text=self.lines[i];if i==self.row then text=text:sub(1,self.column-1).."|"..text:sub(self.column)end;out[#out+1]=row(string.format(" %s%4d  %s",mark,i,text:sub(1,math.max(1,width-9))),{selected=i==self.row,backgroundRole="field",pad=false})end;out[#out+1]=row(string.format("  Ln %d, Col %d    %s    Ctrl+S save",self.row,self.column,self.status),{style="status",pad=false});return out end
+  function m:onEvent(event)if event.name=="touch"and event.localY==2 then local action=buttonAt({"Save","Undo","Find"},event.localX);if action==1 then self:save()elseif action==2 then self:undoOnce()elseif action==3 then self.status="Find is available with Ctrl+F"end;return elseif event.name~="key_down"then return end;local mods=s.desktop.modifiers[context.session.id]or{};local ch=charFrom(event,s.unicode);if mods.ctrl and ch and ch:lower()=="s"then self:save();return end;if mods.ctrl and ch and ch:lower()=="z"then self:undoOnce();return end;if event.code==200 then self.row=math.max(1,self.row-1);self.column=math.min(self.column,#self.lines[self.row]+1)elseif event.code==208 then self.row=math.min(#self.lines,self.row+1);self.column=math.min(self.column,#self.lines[self.row]+1)elseif event.code==203 then self.column=math.max(1,self.column-1)elseif event.code==205 then self.column=math.min(#self.lines[self.row]+1,self.column+1)elseif event.code==14 then self:snapshot();local line=self.lines[self.row];if self.column>1 then self.lines[self.row]=line:sub(1,self.column-2)..line:sub(self.column);self.column=self.column-1 end elseif event.code==28 then self:snapshot();local line=self.lines[self.row];local rest=line:sub(self.column);self.lines[self.row]=line:sub(1,self.column-1);table.insert(self.lines,self.row+1,rest);self.row,self.column=self.row+1,1 elseif ch and ch:byte()>=32 then self:snapshot();local line=self.lines[self.row];self.lines[self.row]=line:sub(1,self.column-1)..ch..line:sub(self.column);self.column=self.column+#ch end end;return m
 end
 
 local function dataApp(spec)
@@ -100,8 +121,9 @@ local function dataApp(spec)
       if ok then return items,nil end
       return {},items
     end
-    function m:render()local items,err=self:items();local out={row("  "..spec.title,{style="header",pad=false}),row("  Refresh    Details"..(spec.actionLabel and("    "..spec.actionLabel)or""),{style="toolbar",pad=false})};if err then out[#out+1]=row("  Data source error: "..tostring(err),{style="danger"})elseif#items==0 then for _,v in ipairs(emptyState(spec.emptyTitle or"Nothing to show",spec.emptyMessage or"No data is currently available."))do out[#out+1]=v end else out[#out+1]=row("  "..(spec.columns or"NAME                         STATUS          DETAIL"),{backgroundRole="field",role="secondary"});for i,item in ipairs(items)do local text=type(item)=="table"and(item.text or table.concat(item,"   "))or tostring(item);out[#out+1]=row("  "..text,{selected=i==self.selected})end end;out[#out+1]=row("  "..self.status.."    Up/Down: select    Enter: action",{style="status",pad=false});return out end
-    function m:onEvent(event)if event.name=="key_down"then if event.code==200 then self.selected=math.max(1,self.selected-1)elseif event.code==208 then self.selected=self.selected+1 elseif event.code==28 and spec.action then local items=self:items();local ok,result=spec.action(context.services,context,items[self.selected]);self.status=ok and tostring(result or"Action completed")or tostring(result)end elseif event.name=="touch"and event.localY>=4 then self.selected=math.max(1,event.localY-3)end end
+    function m:render()local items,err=self:items();local buttons={"Refresh","Details"};if spec.actionLabel then buttons[#buttons+1]=spec.actionLabel end;local out={row("  "..spec.title,{style="header",pad=false}),toolbar(buttons)};if err then out[#out+1]=row("  Data source error: "..tostring(err),{style="danger"})elseif#items==0 then for _,v in ipairs(emptyState(spec.emptyTitle or"Nothing to show",spec.emptyMessage or"No data is currently available."))do out[#out+1]=v end else out[#out+1]=row("  "..(spec.columns or"NAME                         STATUS          DETAIL"),{backgroundRole="field",role="secondary"});for i,item in ipairs(items)do local text=type(item)=="table"and(item.text or table.concat(item,"   "))or tostring(item);out[#out+1]=row("  "..text,{selected=i==self.selected})end end;out[#out+1]=row("  "..self.status.."    Up/Down: select    Enter: action",{style="status",pad=false});return out end
+    function m:runAction()if not spec.action then self.status="No action is available for this view";return end;local items=self:items();local ok,result=spec.action(context.services,context,items[self.selected]);self.status=ok and tostring(result or"Action completed")or tostring(result)end
+    function m:onEvent(event)if event.name=="key_down"then if event.code==200 then self.selected=math.max(1,self.selected-1)elseif event.code==208 then self.selected=self.selected+1 elseif event.code==28 then self:runAction()end elseif event.name=="touch"and event.localY==2 then local buttons={"Refresh","Details"};if spec.actionLabel then buttons[#buttons+1]=spec.actionLabel end;local action=buttonAt(buttons,event.localX);if action==1 then self.status="Data refreshed"elseif action==2 then self.status="Select a row to inspect its details"elseif action==3 then self:runAction()end elseif event.name=="touch"and event.localY>=4 then self.selected=math.max(1,event.localY-3)end end
     function m:tick()end;return m end
 end
 
