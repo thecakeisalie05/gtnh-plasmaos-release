@@ -1,11 +1,24 @@
 -- Stage-1 loader. This is /init.lua, where OpenComputers has not created
 -- require/package yet; keep it intentionally dependency-free.
+local filesystem = component.proxy(computer.getBootAddress())
+
 local function read(path)
-  local handle = io.open(path, "rb")
+  local handle = filesystem.open(path, "rb")
   if not handle then return nil end
-  local data = handle:read("*a")
-  handle:close()
-  return data and data:gsub("%s+$", "")
+  local chunks = {}
+  while true do
+    local chunk = filesystem.read(handle, 2048)
+    if not chunk then break end
+    chunks[#chunks + 1] = chunk
+  end
+  filesystem.close(handle)
+  return table.concat(chunks):gsub("%s+$", "")
+end
+
+local function loadfile(path)
+  local source = read(path)
+  if not source then return nil, "file not found: " .. path end
+  return load(source, "=" .. path, "t", _G)
 end
 
 local active = assert(read("/system/active"), "PlasmaOS active version pointer is missing")
