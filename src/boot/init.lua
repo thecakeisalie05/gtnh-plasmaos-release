@@ -1,4 +1,5 @@
 local root = (...) or _G.PLASMAOS_VERSION_ROOT or "/system/versions/0.1.0"
+io.write("[PlasmaOS] loading modules...\n")
 local unpack = table.unpack or unpack
 local packageTable = package or {path = "", loaded = {}}
 packageTable.path = root .. "/src/?.lua;" .. root .. "/src/?/init.lua;"
@@ -64,6 +65,8 @@ local Shell = require("shell.commands")
 local Builtins = require("apps.builtins")
 local Txn = require("libs.fs_txn")
 
+io.write("[PlasmaOS] initializing services...\n")
+
 environment.fs.makeDirectory("/etc/plasmaos")
 environment.fs.makeDirectory("/var/lib/plasmaos")
 environment.fs.makeDirectory("/var/log/plasmaos")
@@ -86,6 +89,7 @@ capabilities:grant("system", "*")
 local components = ComponentBroker.new(environment.component, {logger = log, capabilities = capabilities})
 local registry = Registry.new(components, {logger = log, clock = environment.computer.uptime})
 registry:discover()
+io.write("[PlasmaOS] displays discovered.\n")
 local sessions = Sessions.new(registry, {logger = log, clock = environment.computer.uptime})
 sessions:sync()
 local compositor = Compositor.new(registry, components, {logger = log, clock = environment.computer.uptime})
@@ -218,6 +222,7 @@ supervisor:register({id="watchdog",restart="on-failure",maxRestarts=3,backoff=1}
   end
 end)
 for _, id in ipairs({"display","files","automation","integrations","network","logging","watchdog"}) do supervisor:start(id) end
+io.write("[PlasmaOS] services started.\n")
 
 environment.fs.write("/system/boot-attempts.new", "0")
 environment.fs.remove("/system/boot-attempts")
