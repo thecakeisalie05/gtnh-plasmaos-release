@@ -1,6 +1,5 @@
--- OpenOS boot hook. Run after OpenOS has initialized its standard libraries.
+-- OpenOS boot hook. Boot scripts run after standard libraries are available.
 local filesystem = require("filesystem")
-local event = require("event")
 
 local function read(path)
   local handle = io.open(path, "rb")
@@ -20,9 +19,4 @@ local function startPlasmaOS()
   return chunk(root)
 end
 
-local listener
-listener = function()
-  event.ignore("init", listener)
-  startPlasmaOS()
-end
-event.listen("init", listener)
+startPlasmaOS()
