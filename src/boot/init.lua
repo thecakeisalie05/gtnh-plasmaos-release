@@ -225,7 +225,9 @@ log:write("info", "boot", "desktop services started", {root = root, sessions = #
 while true do
   scheduler:tick(environment.computer.uptime())
   local drawn, drawErr = pcall(function()
-    compositor:step(environment.computer.uptime(), 32)
+    -- Complete a normal desktop frame in one pass whenever possible.  Small
+    -- batches exposed visibly half-drawn windows on higher-resolution screens.
+    compositor:step(environment.computer.uptime(), 128)
     for _, session in ipairs(sessions:list()) do input:drain(session.id, 16) end
     desktop:tick()
   end)

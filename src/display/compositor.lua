@@ -8,7 +8,7 @@ function Compositor.new(registry, componentAccess, options)
   options = options or {}
   return setmetatable({registry = registry, components = componentAccess,
     logger = options.logger, clock = options.clock or os.clock,
-    maxRegions = options.maxRegions or 12, operationsPerStep = options.operationsPerStep or 32,
+    maxRegions = options.maxRegions or 12, operationsPerStep = options.operationsPerStep or 128,
     leases = {}, renderedFrames = 0, staleFrames = 0, componentErrors = 0}, Compositor)
 end
 

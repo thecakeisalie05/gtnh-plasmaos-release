@@ -153,8 +153,19 @@ function Registry:discover(kindHints)
       local keyboards = {}
       local ok, value = self.components:invoke(address, "getKeyboards")
       if ok and type(value) == "table" then keyboards = value end
-      self:add({screenAddress = address, gpuAddress = gpus[((index - 1) % math.max(1, #gpus)) + 1],
-        keyboards = keyboards, kind = kindHints and kindHints[address]})
+      local gpuAddress = gpus[((index - 1) % math.max(1, #gpus)) + 1]
+      -- A local tiered display should use the GPU's largest supported text
+      -- mode.  The old 80x25 fallback made every desktop unnecessarily small.
+      local width, height = 80, 25
+      if gpuAddress then
+        local maxOk, maxWidth, maxHeight = self.components:invoke(gpuAddress, "maxResolution")
+        if maxOk and type(maxWidth) == "number" and type(maxHeight) == "number" then
+          width, height = maxWidth, maxHeight
+        end
+      end
+      self:add({screenAddress = address, gpuAddress = gpuAddress, keyboards = keyboards,
+        width = width, height = height,
+        kind = (kindHints and kindHints[address]) or (#keyboards > 0 and "local" or "unknown")})
     end
   end
   local present = {}; for _, address in ipairs(screens) do present[address] = true end
