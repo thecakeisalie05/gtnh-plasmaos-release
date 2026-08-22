@@ -53,7 +53,7 @@ local function portableBits()
 end
 local bit = portableBits()
 
-local DEFAULT_BASE_URL = "https://raw.githubusercontent.com/thecakeisalie05/gtnh-plasmaos-release/6264234ee07668c8e64ec705daf64a43ffb81564"
+local DEFAULT_BASE_URL = "https://raw.githubusercontent.com/thecakeisalie05/gtnh-plasmaos-release/b720ebd8825d640fc037d7b6abb68af06593c069"
 local MANIFEST_NAME = "manifest.txt"
 local args = {...}
 
