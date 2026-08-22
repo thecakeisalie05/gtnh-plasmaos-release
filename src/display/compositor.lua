@@ -26,13 +26,11 @@ function Compositor:request(endpointId, rect, builder)
   return true
 end
 
-local function call(proxy, method, ...)
-  local fn = proxy and proxy[method]
-  if type(fn) ~= "function" then return nil, "GPU method unavailable: " .. method end
-  local result = {pcall(fn, ...)}
-  if not result[1] then return nil, result[2] end
-  table.remove(result, 1)
-  return true, unpack(result)
+local function call(components, address, method, ...)
+  -- Invoke by component address instead of through a proxy.  In particular,
+  -- this avoids proxy method binding differences between OpenOS versions and
+  -- Ocelot while retaining the broker's error normalization.
+  return components:invoke(address, method, ...)
 end
 
 function Compositor:_prepare(endpoint, now)
@@ -55,34 +53,32 @@ end
 
 function Compositor:_bind(endpoint, job)
   if not endpoint.gpuAddress then return nil, "no GPU assigned" end
-  local gpu, err = self.components:proxy(endpoint.gpuAddress)
-  if not gpu then return nil, err or "GPU unavailable" end
   local lease = self.leases[endpoint.gpuAddress]
   if not lease or lease.endpointId ~= endpoint.id or lease.generation ~= endpoint.generation then
-    local ok, bindErr = call(gpu, "bind", endpoint.screenAddress, false)
+    local ok, bindErr = call(self.components, endpoint.gpuAddress, "bind", endpoint.screenAddress, false)
     if not ok then return nil, bindErr end
     self.leases[endpoint.gpuAddress] = {endpointId = endpoint.id, generation = endpoint.generation}
   end
-  local okMax, maxWidth, maxHeight = call(gpu, "maxResolution")
+  local okMax, maxWidth, maxHeight = call(self.components, endpoint.gpuAddress, "maxResolution")
   if okMax and (endpoint.width > maxWidth or endpoint.height > maxHeight) then
     endpoint.width, endpoint.height = math.min(endpoint.width, maxWidth), math.min(endpoint.height, maxHeight)
   end
-  local okRes, width, height = call(gpu, "getResolution")
+  local okRes, width, height = call(self.components, endpoint.gpuAddress, "getResolution")
   if okRes and (width ~= endpoint.width or height ~= endpoint.height) then
-    local set, setErr = call(gpu, "setResolution", endpoint.width, endpoint.height)
+    local set, setErr = call(self.components, endpoint.gpuAddress, "setResolution", endpoint.width, endpoint.height)
     if not set then return nil, setErr end
   end
-  job.gpu, job.bound = gpu, true
+  job.gpuAddress, job.bound = endpoint.gpuAddress, true
   return true
 end
 
 function Compositor:_execute(job, command)
-  local gpu = job.gpu
-  if command.background then local ok, err = call(gpu, "setBackground", command.background); if not ok then return nil, err end end
-  if command.foreground then local ok, err = call(gpu, "setForeground", command.foreground); if not ok then return nil, err end end
-  if command.op == "fill" then return call(gpu, "fill", command.x, command.y, command.w, command.h, command.char or " ") end
-  if command.op == "set" then return call(gpu, "set", command.x, command.y, command.text or "") end
-  if command.op == "copy" then return call(gpu, "copy", command.x, command.y, command.w, command.h, command.tx, command.ty) end
+  local components, gpu = self.components, job.gpuAddress
+  if command.background then local ok, err = call(components, gpu, "setBackground", command.background); if not ok then return nil, err end end
+  if command.foreground then local ok, err = call(components, gpu, "setForeground", command.foreground); if not ok then return nil, err end end
+  if command.op == "fill" then return call(components, gpu, "fill", command.x, command.y, command.w, command.h, command.char or " ") end
+  if command.op == "set" then return call(components, gpu, "set", command.x, command.y, command.text or "") end
+  if command.op == "copy" then return call(components, gpu, "copy", command.x, command.y, command.w, command.h, command.tx, command.ty) end
   return nil, "unknown draw operation"
 end
 
