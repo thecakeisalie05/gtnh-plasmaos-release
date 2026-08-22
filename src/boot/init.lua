@@ -180,16 +180,6 @@ events:subscribe("screen_resize", function(event)
     if session then session.windowManager:setGeometry(endpoint.width, endpoint.height - 1); desktop:request(session) end end
 end, "display")
 
-supervisor:register({id="display",restart="on-failure",maxRestarts=3,backoff=1}, function(api)
-  local ok, err = xpcall(function()
-    while true do compositor:step(environment.computer.uptime(), 32)
-      for _, session in ipairs(sessions:list()) do input:drain(session.id, 16) end
-      desktop:tick(); api.sleep(0.03) end
-  end, debug and debug.traceback or tostring)
-  if _G.PLASMAOS_SPLASH then _G.PLASMAOS_SPLASH("PlasmaOS display error: " .. tostring(err))
-  else io.stderr:write("PlasmaOS display error: " .. tostring(err) .. "\n") end
-  error(err)
-end)
 supervisor:register({id="files",restart="on-failure",maxRestarts=3,backoff=1}, function(api)
   while true do fileJobs:step(); api.sleep(fileJobs.active and 0 or 0.1) end
 end)
@@ -222,7 +212,7 @@ supervisor:register({id="watchdog",restart="on-failure",maxRestarts=3,backoff=1}
     memory:sample(); api.sleep(1)
   end
 end)
-for _, id in ipairs({"display","files","automation","integrations","network","logging","watchdog"}) do supervisor:start(id) end
+for _, id in ipairs({"files","automation","integrations","network","logging","watchdog"}) do supervisor:start(id) end
 io.write("[PlasmaOS] services started.\n")
 
 environment.fs.write("/system/boot-attempts.new", "0")
@@ -234,6 +224,12 @@ log:write("info", "boot", "desktop services started", {root = root, sessions = #
 
 while true do
   scheduler:tick(environment.computer.uptime())
+  local drawn, drawErr = pcall(function()
+    compositor:step(environment.computer.uptime(), 32)
+    for _, session in ipairs(sessions:list()) do input:drain(session.id, 16) end
+    desktop:tick()
+  end)
+  if not drawn then io.stderr:write("PlasmaOS display error: " .. tostring(drawErr) .. "\n") end
   events:drain(32); supervisor:tick(environment.computer.uptime())
   local timeout = scheduler:nextDeadline(environment.computer.uptime()) or 0.25
   timeout = math.max(0, math.min(timeout, 0.25))
