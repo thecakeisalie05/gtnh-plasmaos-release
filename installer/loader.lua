@@ -1,6 +1,4 @@
 -- OpenOS boot hook. Boot scripts run after standard libraries are available.
-local filesystem = require("filesystem")
-
 local function read(path)
   local handle = io.open(path, "rb")
   if not handle then return nil end
@@ -13,7 +11,6 @@ local function startPlasmaOS()
   io.write("[PlasmaOS] locating active release...\n")
   local active = assert(read("/system/active"), "PlasmaOS active version pointer is missing")
   local root = "/system/versions/" .. active
-  assert(filesystem.exists(root .. "/src/boot/init.lua"), "PlasmaOS boot entry missing")
   _G.PLASMAOS_VERSION_ROOT, _G.PLASMAOS_BOOT_MODE = root, "normal"
   io.write("[PlasmaOS] loading kernel...\n")
   local chunk, err = loadfile(root .. "/src/boot/init.lua")
