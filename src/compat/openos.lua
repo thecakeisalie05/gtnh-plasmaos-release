@@ -15,6 +15,10 @@ function OpenOS.load()
   }
 
   local fs = {}
+  local function mountProxy(path)
+    if type(filesystem.get) ~= "function" then return nil end
+    return filesystem.get(path)
+  end
   function fs.read(path)
     local handle, err = io.open(path, "rb"); if not handle then return nil, err end
     local data = handle:read("*a"); handle:close(); return data
@@ -27,7 +31,11 @@ function OpenOS.load()
   function fs.open(path, mode) return io.open(path, mode) end
   function fs.exists(path) return filesystem.exists(path) end
   function fs.isDirectory(path) return filesystem.isDirectory(path) end
-  function fs.isReadOnly(path) return filesystem.isReadOnly(path) end
+  function fs.isReadOnly(path)
+    if type(filesystem.isReadOnly) == "function" then return filesystem.isReadOnly(path) end
+    local proxy = mountProxy(path)
+    return proxy and type(proxy.isReadOnly) == "function" and proxy.isReadOnly() or false
+  end
   function fs.concat(a, b) return filesystem.concat(a, b) end
   function fs.makeDirectory(path) return filesystem.makeDirectory(path) end
   function fs.makeParent(path)
@@ -51,7 +59,15 @@ function OpenOS.load()
     return filesystem.remove(path)
   end
   function fs.space(path)
-    return filesystem.spaceTotal(path) - filesystem.spaceUsed(path), filesystem.spaceTotal(path)
+    if type(filesystem.spaceTotal) == "function" and type(filesystem.spaceUsed) == "function" then
+      return filesystem.spaceTotal(path) - filesystem.spaceUsed(path), filesystem.spaceTotal(path)
+    end
+    local proxy = mountProxy(path)
+    if proxy and type(proxy.spaceTotal) == "function" and type(proxy.spaceUsed) == "function" then
+      local total = proxy.spaceTotal()
+      return total - proxy.spaceUsed(), total
+    end
+    return math.huge, math.huge
   end
 
   return {component = components, computer = computer, fs = fs,

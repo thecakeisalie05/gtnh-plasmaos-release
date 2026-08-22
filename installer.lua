@@ -81,6 +81,25 @@ local function atomic(path, data)
 end
 local function mkdir(path) if not filesystem.exists(path) then return filesystem.makeDirectory(path) end return true end
 local function parent(path) return path:match("^(.*)/[^/]+$") end
+local function mountProxy(path)
+  if type(filesystem.get) ~= "function" then return nil end
+  return filesystem.get(path)
+end
+local function isReadOnly(path)
+  if type(filesystem.isReadOnly) == "function" then return filesystem.isReadOnly(path) end
+  local proxy = mountProxy(path)
+  return proxy and type(proxy.isReadOnly) == "function" and proxy.isReadOnly() or false
+end
+local function spaceFree(path)
+  if type(filesystem.spaceTotal) == "function" and type(filesystem.spaceUsed) == "function" then
+    return filesystem.spaceTotal(path) - filesystem.spaceUsed(path)
+  end
+  local proxy = mountProxy(path)
+  if proxy and type(proxy.spaceTotal) == "function" and type(proxy.spaceUsed) == "function" then
+    return proxy.spaceTotal() - proxy.spaceUsed()
+  end
+  return math.huge
+end
 local function removeTree(path)
   if not filesystem.exists(path) then return true end
   if filesystem.isDirectory(path) then for name in filesystem.list(path) do
@@ -139,7 +158,7 @@ local profile = option("--profile") or (not component.isAvailable("gpu") and "se
 assert(profile=="full"or profile=="compact"or profile=="server","profile must be full, compact, or server")
 assert(DEFAULT_BASE_URL:sub(1, 1) ~= "@" or offline or option("--base-url"),
   "installer is unpublished; pass --base-url or --offline")
-assert(not filesystem.isReadOnly("/"), "target filesystem is read-only")
+assert(not isReadOnly("/"), "target filesystem is read-only")
 assert(computer.totalMemory() >= 196608, "at least 192 KiB RAM is required for installation")
 mkdir("/var/tmp"); mkdir("/system"); mkdir("/system/versions")
 local manifestTemp = "/var/tmp/plasma-manifest.txt"
@@ -153,7 +172,7 @@ end
 local manifest = parseManifest(assert(read(manifestTemp)))
 local selected={};local required=0
 for _,file in ipairs(manifest.files)do if file.profile=="all"or file.profile==profile then selected[#selected+1]=file;required=required+file.size end end
-local free = filesystem.spaceTotal("/") - filesystem.spaceUsed("/")
+local free = spaceFree("/")
 assert(free >= required * 1.15 + 16384, "insufficient disk space")
 local suffix = flag("--repair") and ("-repair-" .. math.floor(computer.uptime())) or ""
 local versionName = manifest.version .. suffix
