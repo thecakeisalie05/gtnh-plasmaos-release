@@ -1,6 +1,29 @@
 local root = (...) or _G.PLASMAOS_VERSION_ROOT or "/system/versions/0.1.0"
 local unpack = table.unpack or unpack
-package.path = root .. "/src/?.lua;" .. root .. "/src/?/init.lua;" .. package.path
+local packageTable = package or {path = "", loaded = {}}
+packageTable.path = root .. "/src/?.lua;" .. root .. "/src/?/init.lua;"
+  .. (packageTable.path ~= "" and (";" .. packageTable.path) or "")
+package = packageTable
+
+local function moduleSearch(name)
+  local relative = name:gsub("%.", "/")
+  for template in package.path:gmatch("[^;]+") do
+    local candidate = template:gsub("%?", relative)
+    local chunk = loadfile(candidate)
+    if chunk then return chunk, candidate end
+  end
+end
+
+local require = _G.require or function(name)
+  if package.loaded[name] ~= nil then return package.loaded[name] end
+  local loader, resolved = moduleSearch(name)
+  assert(loader, "module not found: " .. tostring(name))
+  local value = loader(resolved)
+  if value == nil then value = true end
+  package.loaded[name] = value
+  return value
+end
+_G.require = require
 
 local OpenOS = require("compat.openos")
 local environment = OpenOS.load()
