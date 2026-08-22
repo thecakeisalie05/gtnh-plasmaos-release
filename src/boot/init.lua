@@ -181,7 +181,8 @@ supervisor:register({id="display",restart="on-failure",maxRestarts=3,backoff=1},
       for _, session in ipairs(sessions:list()) do input:drain(session.id, 16) end
       desktop:tick(); api.sleep(0.03) end
   end, debug and debug.traceback or tostring)
-  if _G.PLASMAOS_SPLASH then _G.PLASMAOS_SPLASH("PlasmaOS display error: " .. tostring(err)) end
+  if _G.PLASMAOS_SPLASH then _G.PLASMAOS_SPLASH("PlasmaOS display error: " .. tostring(err))
+  else io.stderr:write("PlasmaOS display error: " .. tostring(err) .. "\n") end
   error(err)
 end)
 supervisor:register({id="files",restart="on-failure",maxRestarts=3,backoff=1}, function(api)
