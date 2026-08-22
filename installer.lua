@@ -53,7 +53,7 @@ local function portableBits()
 end
 local bit = portableBits()
 
-local DEFAULT_BASE_URL = "https://raw.githubusercontent.com/thecakeisalie05/gtnh-plasmaos-release/26d710e84b48fe22e171ea01f127b8061e2d8fdf"
+local DEFAULT_BASE_URL = "https://raw.githubusercontent.com/thecakeisalie05/gtnh-plasmaos-release/main"
 local MANIFEST_NAME = "manifest.txt"
 local args = {...}
 
@@ -203,10 +203,8 @@ if oldActive then assert(atomic("/system/last-good", oldActive)) end
 assert(atomic("/system/active", versionName))
 assert(atomic("/system/boot-attempts", "0"))
 local loader = assert(read(final .. "/installer/loader.lua"), "stage-1 loader absent")
-if filesystem.exists("/init.lua") and not filesystem.exists("/init.lua.pre-plasmaos") then
-  assert(write("/init.lua.pre-plasmaos", assert(read("/init.lua"))))
-end
-assert(atomic("/init.lua", loader))
+mkdir("/boot")
+assert(atomic("/boot/99-plasmaos.lua", loader))
 mkdir("/etc/plasmaos"); mkdir("/home")
 assert(atomic("/etc/plasmaos/install-profile",profile))
 io.write("PlasmaOS " .. manifest.version .. " installed transactionally. Rebooting.\n")
