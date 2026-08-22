@@ -24,6 +24,12 @@ No component address is compiled in. Screens, keyboards, GPUs, modems, and GTNH 
 - `F12`: render/input diagnostics overlay
 - Click title-bar controls to minimize, maximize/restore, or close. Drag title bars and the lower-right cell to move/resize.
 
+For Remote Terminal input troubleshooting, open Terminal with `F2` and run `remote`.
+It reports whether OpenComputers machine ownership is filtering the player and
+whether `touch` signals are reaching PlasmaOS. `remote refresh` rebuilds virtual
+screen/keyboard mappings; `remote allow <MinecraftName>` authorizes a player on
+an owned computer.
+
 The launcher includes Settings, editor, Component Explorer, Application Center, automation, and adapter-backed Energy, inventory/fluid, redstone, AE/ME, GregTech, reactor, base, rack, robot, and navigation centers. Unsupported hardware is shown as unavailable rather than guessed.
 
 ## Build and publish

@@ -9,6 +9,14 @@ local function shallowCopy(list)
   return out
 end
 
+local function sameAddresses(a, b)
+  if #(a or {}) ~= #(b or {}) then return false end
+  local present = {}
+  for _, address in ipairs(a or {}) do present[address] = true end
+  for _, address in ipairs(b or {}) do if not present[address] then return false end end
+  return true
+end
+
 function Registry.new(componentAccess, options)
   options = options or {}
   return setmetatable({
@@ -132,6 +140,37 @@ function Registry:byInput(address)
   return id and self.endpoints[id] or nil
 end
 
+function Registry:_keyboards(screenAddress)
+  local ok, value = self.components:invoke(screenAddress, "getKeyboards")
+  if ok and type(value) == "table" then return value end
+  return {}
+end
+
+-- Terminal Servers expose a virtual screen and keyboard. Their association may
+-- become visible after the screen itself, so refresh it without rebuilding the
+-- session or changing its generation when nothing actually changed.
+function Registry:refreshInputs()
+  local changed = 0
+  for _, endpoint in pairs(self.endpoints) do
+    if endpoint.connected then
+      local keyboards = self:_keyboards(endpoint.screenAddress)
+      if not sameAddresses(endpoint.keyboards, keyboards) then
+        self:updateKeyboards(endpoint.id, keyboards)
+        changed = changed + 1
+      end
+    end
+  end
+  return changed
+end
+
+function Registry:resolveInput(address)
+  local endpoint = self:byInput(address)
+  if endpoint and endpoint.connected then return endpoint end
+  self:discover()
+  endpoint = self:byInput(address)
+  return endpoint and endpoint.connected and endpoint or nil
+end
+
 function Registry:get(id) return self.endpoints[id] end
 
 function Registry:list()
@@ -150,9 +189,7 @@ function Registry:discover(kindHints)
   table.sort(screens); table.sort(gpus)
   for index, address in ipairs(screens) do
     if not self.screenIndex[address] then
-      local keyboards = {}
-      local ok, value = self.components:invoke(address, "getKeyboards")
-      if ok and type(value) == "table" then keyboards = value end
+      local keyboards = self:_keyboards(address)
       local gpuAddress = gpus[((index - 1) % math.max(1, #gpus)) + 1]
       -- A local tiered display should use the GPU's largest supported text
       -- mode.  The old 80x25 fallback made every desktop unnecessarily small.
@@ -166,6 +203,12 @@ function Registry:discover(kindHints)
       self:add({screenAddress = address, gpuAddress = gpuAddress, keyboards = keyboards,
         width = width, height = height,
         kind = (kindHints and kindHints[address]) or (#keyboards > 0 and "local" or "unknown")})
+    else
+      local endpoint = self:byInput(address)
+      local keyboards = self:_keyboards(address)
+      if endpoint and not sameAddresses(endpoint.keyboards, keyboards) then
+        self:updateKeyboards(endpoint.id, keyboards)
+      end
     end
   end
   local present = {}; for _, address in ipairs(screens) do present[address] = true end

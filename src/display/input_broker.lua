@@ -17,7 +17,8 @@ function Input.new(registry, sessions, options)
   return setmetatable({registry = registry, sessions = sessions, queues = {},
     capacity = options.capacity or 48, logger = options.logger,
     dispatch = options.dispatch, globalShortcut = options.globalShortcut,
-    rawReceived = 0, normalizedDispatched = 0, routeFailures = 0}, Input)
+    rawReceived = 0, normalizedDispatched = 0, routeFailures = 0,
+    receivedByType = {}, failureByType = {}, lastEvent = nil}, Input)
 end
 
 function Input:_queue(sessionId)
@@ -28,11 +29,23 @@ end
 function Input:route(event)
   if not screenEvents[event.name] and not keyboardEvents[event.name] then return false end
   self.rawReceived = self.rawReceived + 1
+  self.receivedByType[event.name] = (self.receivedByType[event.name] or 0) + 1
   local address = event.args[1]
   local endpoint = self.registry:byInput(address)
-  if not endpoint or not endpoint.connected then self.routeFailures = self.routeFailures + 1; return nil, "unmapped input" end
+  if (not endpoint or not endpoint.connected) and self.registry.resolveInput then
+    endpoint = self.registry:resolveInput(address)
+  end
+  if not endpoint or not endpoint.connected then
+    self.routeFailures = self.routeFailures + 1
+    self.failureByType[event.name] = (self.failureByType[event.name] or 0) + 1
+    return nil, "unmapped input"
+  end
   local session = self.sessions:getByEndpoint(endpoint.id)
-  if not session or session.state ~= "active" then self.routeFailures = self.routeFailures + 1; return nil, "inactive session" end
+  if not session or session.state ~= "active" then
+    self.routeFailures = self.routeFailures + 1
+    self.failureByType[event.name] = (self.failureByType[event.name] or 0) + 1
+    return nil, "inactive session"
+  end
   local normalized = {name = event.name, address = address, sessionId = session.id,
     endpointId = endpoint.id, generation = endpoint.generation, time = event.time}
   if screenEvents[event.name] then
@@ -42,6 +55,8 @@ function Input:route(event)
     normalized.char, normalized.code, normalized.player = event.args[2], event.args[3], event.args[4]
     if event.name == "clipboard" then normalized.text, normalized.player = event.args[2], event.args[3] end
   end
+  self.lastEvent = {name = event.name, address = address, player = normalized.player,
+    endpointId = endpoint.id, time = event.time}
   endpoint.lastInput = event.time or os.clock()
   local ok, err = self:_queue(session.id):push(normalized)
   session.inputQueueDepth = self:_queue(session.id):size()
@@ -81,7 +96,9 @@ function Input:metrics(sessionId)
   local queue = self:_queue(sessionId)
   return {depth = queue:size(), capacity = queue.capacity, dropped = queue.dropped,
     coalesced = queue.coalesced, rawReceived = self.rawReceived,
-    normalizedDispatched = self.normalizedDispatched, routeFailures = self.routeFailures}
+    normalizedDispatched = self.normalizedDispatched, routeFailures = self.routeFailures,
+    receivedByType = self.receivedByType, failureByType = self.failureByType,
+    lastEvent = self.lastEvent}
 end
 
 return Input

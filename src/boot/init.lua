@@ -174,7 +174,9 @@ local input = Input.new(registry, sessions, {logger = log,
 services.input = input
 events:subscribe({touch=true,drag=true,drop=true,scroll=true,walk=true,key_down=true,key_up=true,clipboard=true},
   function(event) event.time = environment.computer.uptime(); input:route(event) end, "input")
-events:subscribe({component_added=true,component_removed=true}, function() registry:discover(); sessions:sync()
+events:subscribe({component_added=true,component_removed=true,component_available=true,
+  component_unavailable=true,term_available=true,term_unavailable=true}, function()
+  registry:discover(); sessions:sync()
   for _, session in ipairs(sessions:list()) do if not session.windowManager.damage then desktop:attach(session) end end
   integrations:discover(); modem:discover() end, "hardware")
 events:subscribe("modem_message", function(event) modem:receive(event) end, "network")

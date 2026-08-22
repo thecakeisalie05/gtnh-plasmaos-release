@@ -34,7 +34,7 @@ function Shell:execute(line, session)
   command = self.aliases[command] or command
   if command == "help" then return {"Commands: help ls cat mkdir rm cp mv ps kill services logs",
     " sessions displays restart-session components apps open packages automation",
-    " update memory energy uptime clear lua reboot shutdown"}
+    " update memory energy uptime remote clear lua reboot shutdown"}
   elseif command == "clear" then return {__clear = true}
   elseif command == "ls" then
     local entries, err = self.s.files:list(args[1] or "/", args[2] == "-a")
@@ -92,6 +92,37 @@ function Shell:execute(line, session)
   elseif command == "memory" then local m = self.s.memory:sample(); return {string.format("%d/%d free (%.1f%%) %s", m.free, m.total, m.ratio * 100, m.state)}
   elseif command == "energy" then return {string.format("%.1f / %.1f", self.s.computer.energy(), self.s.computer.maxEnergy())}
   elseif command == "uptime" then return {string.format("%.1f seconds", self.s.computer.uptime())}
+  elseif command == "remote" then
+    if args[1] == "refresh" then
+      self.s.registry:discover(); self.s.sessions:sync()
+      return {"Remote display/input mappings refreshed"}
+    elseif args[1] == "allow" then
+      local name = assert(args[2], "Minecraft user name required")
+      local ok, err = self.s.computer.addUser(name)
+      return {ok and ("Allowed OpenComputers user: " .. name) or ("error: " .. tostring(err))}
+    elseif args[1] == "remove" then
+      local name = assert(args[2], "Minecraft user name required")
+      local ok = self.s.computer.removeUser(name)
+      return {ok and ("Removed OpenComputers user: " .. name) or "error: user was not registered"}
+    end
+    local machineUsers = {self.s.computer.users()}
+    local out
+    if #machineUsers == 0 then
+      out = {"OpenComputers access: open to all players"}
+    else
+      out = {"OpenComputers users: " .. table.concat(machineUsers, ", "),
+        "Remote input is accepted only from these players"}
+    end
+    if self.s.input then
+      local metrics = self.s.input:metrics(session.id)
+      out[#out + 1] = string.format("Touch signals: %d  routing failures: %d",
+        metrics.receivedByType.touch or 0, metrics.failureByType.touch or 0)
+      local last = metrics.lastEvent
+      if last then out[#out + 1] = string.format("Last input: %s on %s by %s",
+        last.name, tostring(last.endpointId or "unmapped"), tostring(last.player or "unknown")) end
+    end
+    out[#out + 1] = "Use: remote refresh | remote allow <MinecraftName>"
+    return out
   elseif command == "lua" then
     local source = table.concat(args, " "); local environment = {math = math, string = string, table = table,
       pairs = pairs, ipairs = ipairs, tostring = tostring, tonumber = tonumber, type = type}

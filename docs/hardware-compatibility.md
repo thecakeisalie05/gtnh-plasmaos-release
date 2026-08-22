@@ -9,7 +9,12 @@ Documented signal identity used by the router:
 - `key_down`, `key_up`, and `clipboard`: keyboard address
 - `touch`, `drag`, `drop`, `scroll`, and `screen_resize`: screen address
 - screen `getKeyboards()`: associated keyboard addresses
-- `component_added`/`component_removed`: hotplug discovery
+- `component_added`/`component_removed` and OpenOS availability signals: hotplug discovery
+
+Terminal Server screen/keyboard associations are refreshed on availability
+changes and once more when an unknown input address is first observed. Remote
+Terminal mouse and keyboard events are OpenComputers checked signals: on an
+owned machine, the Minecraft player must appear in `computer.users()`.
 
 References: GTNewHorizons/OpenComputers, MightyPirates/OpenComputers `master-MC1.7.10`, and the OpenComputers Signals documentation.
 
