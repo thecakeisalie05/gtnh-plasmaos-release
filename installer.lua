@@ -102,7 +102,7 @@ if offline then
   assert(write(manifestTemp, assert(read(source))))
 else
   assert(component.isAvailable("internet"), "Internet Card unavailable; use --offline <path>")
-  assert(shell.execute("wget", "-f", baseUrl .. "/" .. MANIFEST_NAME, manifestTemp), "manifest download failed")
+  assert(shell.execute("wget", nil, "-f", baseUrl .. "/" .. MANIFEST_NAME, manifestTemp), "manifest download failed")
 end
 local manifest = parseManifest(assert(read(manifestTemp)))
 local selected={};local required=0
@@ -123,7 +123,7 @@ for index, file in ipairs(selected) do
   for attempt = 1, 3 do
     filesystem.remove(target)
     if offline then downloaded = write(target, assert(read(filesystem.concat(offline, file.path))))
-    else downloaded = shell.execute("wget", "-f", baseUrl .. "/" .. file.path, target) end
+    else downloaded = shell.execute("wget", nil, "-f", baseUrl .. "/" .. file.path, target) end
     local data = downloaded and read(target)
     if data and #data == file.size and sha256(data) == file.sha256 then downloaded = true; break end
     downloaded = false
