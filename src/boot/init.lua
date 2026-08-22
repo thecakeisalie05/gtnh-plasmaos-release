@@ -73,7 +73,7 @@ local logSink = LogSink.new(environment.fs, {path = "/var/log/plasmaos/system.lo
 log.sink = function(entry) logSink:enqueue(entry) end
 local transaction = Txn.new(environment.fs, log)
 local config = Config.new({root = "/etc/plasmaos", fs = environment.fs, transaction = transaction, logger = log})
-config:register("desktop", {version = 1, defaults = {theme = "dark", remoteFps = 6, localFps = 12}})
+config:register("desktop", {version = 1, defaults = {theme = "highContrast", remoteFps = 6, localFps = 12}})
 config:register("first_run", {version = 1, defaults = {step = 1, completed = false}})
 local scheduler = Scheduler.new({clock = environment.computer.uptime, logger = log, maxProcesses = 96})
 local events = EventBroker.new({logger = log, scheduler = scheduler, capacity = 128})

@@ -2,7 +2,7 @@ PLOS-MANIFEST	1
 version	0.1.0
 channel	alpha
 file	CHANGELOG.md	1133	ce2cdbe194db50fd330aeb597510b1638a5f136834494a2c3a7c808acda18672	all
-file	config/defaults/desktop.json	63	2e42c8368e4a86e04aae575bc6bae4624ba70b46dbbfc53aec5c7c17d3364c58	all
+file	config/defaults/desktop.json	71	3b23d0e4731d312236dd8ab20c3e4ba8478bb64f58a59fd7b06dac7519b73965	all
 file	config/defaults/first_run.json	47	4fdf241f224588a89a3323e9f7492d19327ea6ab2a427f2602027c022a71fef8	all
 file	docs/acceptance-status.md	1726	a0efaaa823d29dd50091406530d6b819a296afd004bbd81bdd76315f0089a0f2	all
 file	docs/app-sdk.md	1513	2bd4f763bb1205e5f6130cf51246b56e51b98343992434db1fcb6a3687dbf04e	all
@@ -17,7 +17,7 @@ file	LICENSE	1083	7af03a73f06a45b3cc01140ac69a84e34ece914f1e5f1024111b3ef54ceaaa
 file	README.md	3963	7f8c306b9cc89c1fedb88e835666711a1620a086f343c372912ae3c060e40168	all
 file	recovery/uninstall.lua	427	e6c07dfe9be996b481016b75c0ae594a6c36787c927e17d8869183d3b8fae4b6	all
 file	src/apps/builtins.lua	15262	dfb9882e129809413b8ac081596fa2f1634308483a62dc009fef381d9192457e	all
-file	src/boot/init.lua	13770	8c14c05fbeb64e7e91661363e7dd65baeb14a6ec39bfca84098e357eb6467715	all
+file	src/boot/init.lua	13778	36119207fb985bfe1358ccf351ff2e5b6f169d113a6cfc7da08a1669ea1218a1	all
 file	src/boot/safe_mode.lua	1785	e649d747f3fcd3bd5bbebf8ac3e44361dc8dd988bbddd1bef759f9bfaa851a89	all
 file	src/compat/openos.lua	3593	50d794cb8d08f8f2af81a3e8072d0c97d9f9634445e85e503984b40831c8f149	all
 file	src/display/compositor.lua	7547	85ba33e929a7bc1d3babba35316f978ba014d7fb4b5f3f701498a20626696a11	all
