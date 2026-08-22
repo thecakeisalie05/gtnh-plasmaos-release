@@ -61,6 +61,21 @@ function io.open(path, mode)
 end
 _G.io = io
 _G.PLASMAOS_BOOT_FILESYSTEM = filesystem
+_G.PLASMAOS_SPLASH = function(message)
+  local gpuAddress, screenAddress
+  for address in component.list("gpu") do gpuAddress = address; break end
+  for address in component.list("screen") do screenAddress = address; break end
+  if not gpuAddress or not screenAddress then return end
+  local gpu = component.proxy(gpuAddress)
+  pcall(function()
+    gpu.bind(screenAddress, false)
+    gpu.setBackground(0x000000)
+    gpu.setForeground(0xffffff)
+    local width, height = gpu.getResolution()
+    gpu.fill(1, 1, width, height, " ")
+    gpu.set(1, 1, tostring(message):sub(1, width))
+  end)
+end
 local osTable = os or {}
 osTable.clock = osTable.clock or computer.uptime
 osTable.time = osTable.time or computer.uptime

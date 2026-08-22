@@ -176,9 +176,13 @@ events:subscribe("screen_resize", function(event)
 end, "display")
 
 supervisor:register({id="display",restart="on-failure",maxRestarts=3,backoff=1}, function(api)
-  while true do compositor:step(environment.computer.uptime(), 32)
-    for _, session in ipairs(sessions:list()) do input:drain(session.id, 16) end
-    desktop:tick(); api.sleep(0.03) end
+  local ok, err = xpcall(function()
+    while true do compositor:step(environment.computer.uptime(), 32)
+      for _, session in ipairs(sessions:list()) do input:drain(session.id, 16) end
+      desktop:tick(); api.sleep(0.03) end
+  end, debug and debug.traceback or tostring)
+  if _G.PLASMAOS_SPLASH then _G.PLASMAOS_SPLASH("PlasmaOS display error: " .. tostring(err)) end
+  error(err)
 end)
 supervisor:register({id="files",restart="on-failure",maxRestarts=3,backoff=1}, function(api)
   while true do fileJobs:step(); api.sleep(fileJobs.active and 0 or 0.1) end
