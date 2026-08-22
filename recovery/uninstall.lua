@@ -1,0 +1,7 @@
+local filesystem = require("filesystem")
+assert(filesystem.exists("/init.lua.pre-plasmaos"), "pre-PlasmaOS loader backup not found")
+filesystem.remove("/init.lua.restore")
+assert(filesystem.rename("/init.lua.pre-plasmaos", "/init.lua.restore"))
+filesystem.remove("/init.lua")
+assert(filesystem.rename("/init.lua.restore", "/init.lua"))
+io.write("Previous /init.lua restored. User data and PlasmaOS versions were preserved.\n")
