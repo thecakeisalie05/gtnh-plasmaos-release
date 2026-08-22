@@ -26,11 +26,17 @@ function Apps:launch(appId, sessionId, options)
     local appPid = api.pid()
     local context = {api = api, session = session, options = options, services = options.services or self.services or {}}
     local model = app.factory(context)
-    local view = model.render and model:render() or {app.manifest.name}
-    local window = session.windowManager:create({ownerPid = appPid, appId = appId,
+    local window
+    window = session.windowManager:create({ownerPid = appPid, appId = appId,
       title = app.manifest.name, w = app.manifest.width, h = app.manifest.height,
       minW = app.manifest.minWidth, minH = app.manifest.minHeight,
-      render = function() return view end,
+      render = function(current)
+        if not model.render then return {{text = app.manifest.name, style = "header"}} end
+        local ok, view = pcall(model.render, model, math.max(1, current.w - 2), math.max(1, current.h - 1))
+        if ok then return view end
+        return {{text = "This application could not draw its view.", style = "danger"},
+          {text = tostring(view), role = "secondary"}}
+      end,
       onEvent = function(_, event) return self.scheduler:send(appPid, event) end,
       onClose = function() self.scheduler:send(appPid, {name = "app_close"}) end})
     while true do
@@ -38,7 +44,6 @@ function Apps:launch(appId, sessionId, options)
       if event and event.name == "app_close" then return end
       if model.onEvent and event then model:onEvent(event) end
       if model.tick and not event then model:tick() end
-      if model.render then view = model:render() end
       if self.repaint then self.repaint(session.endpointId,
         {x = window.x, y = window.y, w = window.w, h = window.h}) end
     end

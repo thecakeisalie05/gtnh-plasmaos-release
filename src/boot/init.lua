@@ -76,7 +76,7 @@ local logSink = LogSink.new(environment.fs, {path = "/var/log/plasmaos/system.lo
 log.sink = function(entry) logSink:enqueue(entry) end
 local transaction = Txn.new(environment.fs, log)
 local config = Config.new({root = "/etc/plasmaos", fs = environment.fs, transaction = transaction, logger = log})
-config:register("desktop", {version = 1, defaults = {theme = "highContrast", remoteFps = 6, localFps = 12}})
+config:register("desktop", {version = 1, defaults = {theme = "dark", remoteFps = 6, localFps = 12}})
 config:register("first_run", {version = 1, defaults = {step = 1, completed = false}})
 local scheduler = Scheduler.new({clock = environment.computer.uptime, logger = log, maxProcesses = 96})
 local events = EventBroker.new({logger = log, scheduler = scheduler, capacity = 128})
@@ -149,10 +149,14 @@ apps:register({id="first_run",name="Welcome to PlasmaOS",category="System",essen
   local model = {}
   function model:render()
     local step, index, count, complete = context.services.firstRun:current()
-    if complete then return {"Setup complete.", "Close this window to use PlasmaOS."} end
-    return {"First-run setup (resumable)", string.format("Step %d/%d: %s", index, count, step), "",
-      "Hardware and components are discovered at runtime.", "Defaults are safe for remote/low-bandwidth displays.",
-      "Press Enter to accept this step and continue."}
+    if complete then return {{text="  Welcome to PlasmaOS",style="header",pad=false},
+      {text="  Setup complete",style="success",pad=false},
+      {text="  Your desktop is ready. Close this window to begin.",role="secondary"}} end
+    return {{text="  Welcome to PlasmaOS",style="header",pad=false},
+      {text=string.format("  Setup progress     Step %d of %d",index,count),style="toolbar",pad=false},
+      {text=""},{text="  "..tostring(step),role="accent"},{text="  Hardware is discovered automatically at runtime.",role="secondary"},
+      {text="  Display, input, and safe defaults are already configured.",role="secondary"},{text=""},
+      {text="  Press Enter to accept this step and continue",style="status",pad=false}}
   end
   function model:onEvent(event) if event.name == "key_down" and event.code == 28 then context.services.firstRun:advance() end end
   return model

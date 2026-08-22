@@ -21,6 +21,18 @@ local function clippedText(commands, dirty, x, y, text, foreground, background)
     text = text:sub(left - x + 1, right - x + 1), foreground = foreground, background = background})
 end
 
+local function rowColors(row, colors)
+  local foreground = row.foreground or (row.role and colors[row.role]) or colors.foreground
+  local background = row.background or (row.backgroundRole and colors[row.backgroundRole]) or colors.surface
+  if row.selected then foreground, background = colors.chromeText, colors.selection end
+  if row.style == "header" then foreground, background = colors.chromeText, colors.titleActive
+  elseif row.style == "toolbar" then foreground, background = colors.foreground, colors.raised
+  elseif row.style == "status" then foreground, background = colors.secondary, colors.field
+  elseif row.style == "danger" then foreground, background = colors.chromeText, colors.error
+  elseif row.style == "success" then foreground, background = colors.chromeText, colors.success end
+  return foreground, background
+end
+
 function Desktop.new(options)
   options = options or {}
   return setmetatable({compositor = options.compositor, registry = options.registry,
@@ -49,22 +61,42 @@ end
 function Desktop:_window(commands, dirty, window, focused, colors)
   local rect = {x = window.x, y = window.y, w = window.w, h = window.h}
   local body = intersection(dirty, rect); if not body then return end
+  -- The shadow and solid color planes create window depth without relying on
+  -- character-art borders.
+  local shadow = intersection(dirty, {x = window.x + 1, y = window.y + 1, w = window.w, h = window.h})
+  if shadow then append(commands, {op = "fill", x = shadow.x, y = shadow.y, w = shadow.w,
+    h = shadow.h, char = " ", background = colors.shadow}) end
   append(commands, {op = "fill", x = body.x, y = body.y, w = body.w, h = body.h,
-    char = " ", background = colors.raised, foreground = colors.foreground})
+    char = " ", background = colors.surface, foreground = colors.foreground})
   local titleRect = intersection(dirty, {x = window.x, y = window.y, w = window.w, h = 1})
   if titleRect then append(commands, {op = "fill", x = titleRect.x, y = titleRect.y,
     w = titleRect.w, h = 1, char = " ", background = focused and colors.titleActive or colors.titleInactive}) end
-  local title = " " .. window.title
-  clippedText(commands, dirty, window.x, window.y, title, colors.foreground,
+  local title = "  " .. window.title
+  clippedText(commands, dirty, window.x, window.y, title, colors.chromeText,
     focused and colors.titleActive or colors.titleInactive)
-  clippedText(commands, dirty, window.x + window.w - 5, window.y, "_ [] X", colors.foreground,
-    focused and colors.titleActive or colors.titleInactive)
+  local controlY = window.y
+  local controls = {{x = window.x + window.w - 8, text = " - ", bg = colors.titleInactive},
+    {x = window.x + window.w - 5, text = " + ", bg = colors.selection},
+    {x = window.x + window.w - 2, text = " x ", bg = colors.error}}
+  for _, control in ipairs(controls) do
+    local controlRect = intersection(dirty, {x = control.x, y = controlY, w = 3, h = 1})
+    if controlRect then append(commands, {op = "fill", x = controlRect.x, y = controlY,
+      w = controlRect.w, h = 1, char = " ", background = control.bg}) end
+    clippedText(commands, dirty, control.x, controlY, control.text, colors.chromeText, control.bg)
+  end
   local lines = window.render and window.render(window) or {}
-  for index = 1, math.min(#lines, window.h - 2) do
-    local value = type(lines[index]) == "table" and lines[index].text or tostring(lines[index])
-    local fg = type(lines[index]) == "table" and lines[index].foreground or colors.foreground
-    clippedText(commands, dirty, window.x + 1, window.y + index, value:sub(1, math.max(0, window.w - 2)),
-      fg, colors.raised)
+  for index = 1, math.min(#lines, window.h - 1) do
+    local row = type(lines[index]) == "table" and lines[index] or {text = tostring(lines[index])}
+    local value = tostring(row.text or "")
+    local fg, bg = rowColors(row, colors)
+    local rowRect = intersection(dirty, {x = window.x, y = window.y + index, w = window.w, h = 1})
+    if rowRect then append(commands, {op = "fill", x = rowRect.x, y = rowRect.y,
+      w = rowRect.w, h = 1, char = " ", background = bg, foreground = fg}) end
+    local pad = row.pad == false and 0 or (row.indent or 1)
+    local available = math.max(0, window.w - pad - 1)
+    local x = window.x + pad
+    if row.align == "right" then x = math.max(window.x, window.x + window.w - #value - 1) end
+    clippedText(commands, dirty, x, window.y + index, value:sub(1, available), fg, bg)
   end
 end
 
@@ -78,8 +110,13 @@ function Desktop:_panel(commands, dirty, endpoint, session, colors)
     tasks[#tasks + 1] = (window.id == session.focusedWindow and "[" or " ") .. window.title:sub(1, 9)
       .. (window.id == session.focusedWindow and "]" or " ")
   end
-  local left = "[P] " .. table.concat(tasks, " ")
-  clippedText(commands, dirty, 1, y, left, colors.foreground, colors.panel)
+  local plasmaWidth = math.min(12, endpoint.width)
+  local plasmaRect = intersection(dirty, {x = 1, y = y, w = plasmaWidth, h = 1})
+  if plasmaRect then append(commands, {op = "fill", x = plasmaRect.x, y = y, w = plasmaRect.w,
+    h = 1, char = " ", background = colors.titleActive}) end
+  clippedText(commands, dirty, 2, y, "PLASMA", colors.chromeText, colors.titleActive)
+  local taskText = table.concat(tasks, " ")
+  clippedText(commands, dirty, plasmaWidth + 2, y, taskText, colors.foreground, colors.panel)
   local health = self.registry:get(session.endpointId)
   local clock = os.date and os.date("%H:%M") or tostring(math.floor(os.clock()))
   local right = (health and health.lowBandwidth and " REMOTE " or " LOCAL ") .. clock
@@ -122,7 +159,14 @@ function Desktop:build(endpoint, session, regions)
   for _, dirty in ipairs(regions) do
     append(commands, {op = "fill", x = dirty.x, y = dirty.y, w = dirty.w, h = dirty.h,
       char = " ", background = colors.desktop, foreground = colors.foreground})
-    clippedText(commands, dirty, 3, 2, "GTNH PlasmaOS", colors.secondary, colors.desktop)
+    -- A quiet, color-led desktop canvas.  Labels are deliberately sparse so
+    -- windows and live plant information remain the focus.
+    clippedText(commands, dirty, 4, 3, "PlasmaOS", colors.accent, colors.desktop)
+    clippedText(commands, dirty, 4, 4, "GT New Horizons control desktop", colors.secondary, colors.desktop)
+    clippedText(commands, dirty, 4, 7, "F1  Applications", colors.foreground, colors.desktop)
+    clippedText(commands, dirty, 4, 8, "F2  Terminal", colors.foreground, colors.desktop)
+    clippedText(commands, dirty, 4, 9, "F3  Files", colors.foreground, colors.desktop)
+    clippedText(commands, dirty, 4, 10, "F4  System Monitor", colors.foreground, colors.desktop)
     if session.locked then
       clippedText(commands,dirty,math.max(2,math.floor(endpoint.width/2)-8),math.floor(endpoint.height/2),"SESSION LOCKED",colors.warning,colors.desktop)
       clippedText(commands,dirty,math.max(2,math.floor(endpoint.width/2)-11),math.floor(endpoint.height/2)+2,"Press Enter to unlock",colors.foreground,colors.desktop)
@@ -145,18 +189,36 @@ function Desktop:toggleLauncher(session)
     session.windowManager:close(existing); self.launcher[session.id] = nil; return
   end
   local appList = self.apps:list()
-  local lines = {"Applications"}
-  for index, app in ipairs(appList) do lines[#lines + 1] = string.format("%2d  %s", index, app.name) end
-  lines[#lines + 1] = ""; lines[#lines + 1] = "F2 Terminal  F3 Files  F4 Tasks"
+  local selected, scroll, visible = 1, 1, 18
+  local function rows()
+    local lines = {{text = "  Applications", style = "header", pad = false},
+      {text = "  Choose an application", style = "toolbar", pad = false}}
+    local stop = math.min(#appList, scroll + visible - 1)
+    for index = scroll, stop do
+      local app = appList[index]
+      lines[#lines + 1] = {text = string.format("  %-28s %s", app.name, app.category or ""),
+        selected = index == selected, pad = false}
+    end
+    if #appList == 0 then lines[#lines + 1] = {text = "  No applications installed", role = "secondary"} end
+    lines[#lines + 1] = {text = "  Enter: open    Esc: close    F2-F4: quick launch", style = "status", pad = false}
+    return lines
+  end
   local window
   window = session.windowManager:create({title = "Application Launcher", x = 2,
-    y = math.max(2, session.windowManager.height - math.min(16, #lines + 2) + 1),
-    w = math.min(42, session.windowManager.width - 2), h = math.min(16, #lines + 2),
-    render = function() return lines end,
+    y = math.max(2, session.windowManager.height - math.min(24, #appList + 5) + 1),
+    w = math.min(52, session.windowManager.width - 2), h = math.min(24, #appList + 5),
+    render = rows,
     onEvent = function(_, event)
-      if event.name == "touch" then
-        local index = event.localY - 1
-        if appList[index] then self.apps:launch(appList[index].id, session.id); session.windowManager:close(window.id); self.launcher[session.id] = nil end
+      if event.name == "touch" and event.localY >= 3 and event.localY < visible + 3 then
+        selected = math.min(#appList, scroll + event.localY - 3)
+        local app = appList[selected]
+        if app then self.apps:launch(app.id, session.id); session.windowManager:close(window.id); self.launcher[session.id] = nil end
+      elseif event.name == "key_down" then
+        if event.code == 200 then selected = math.max(1, selected - 1)
+        elseif event.code == 208 then selected = math.min(#appList, selected + 1)
+        elseif event.code == 28 and appList[selected] then self.apps:launch(appList[selected].id, session.id); session.windowManager:close(window.id); self.launcher[session.id] = nil
+        elseif event.code == 1 then session.windowManager:close(window.id); self.launcher[session.id] = nil end
+        if selected < scroll then scroll = selected elseif selected >= scroll + visible then scroll = selected - visible + 1 end
       end
     end})
   self.launcher[session.id] = window.id

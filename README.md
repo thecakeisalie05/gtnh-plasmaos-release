@@ -1,6 +1,6 @@
 # GTNH PlasmaOS
 
-GTNH PlasmaOS is a Lua 5.2-compatible graphical OpenComputers environment for GT New Horizons. Its first release slice is usable rather than a UI mock: it boots into a character-cell desktop, isolates applications and services, supports independent local/Terminal Server sessions, provides core apps and GTNH adapter centers, and installs/updates through immutable staged versions.
+GTNH PlasmaOS is a Lua 5.2-compatible graphical OpenComputers environment for GT New Horizons. Its color-driven desktop uses the GPU's native text resolution with window chrome, mouse interaction, responsive applications, and live GTNH dashboards. It isolates applications and services, supports independent local/Terminal Server sessions, and installs or updates through immutable staged versions.
 
 Version `0.1.0-alpha` has passed the host simulation suite. It has not been certified on a live GTNH computer; see [hardware validation](docs/hardware-compatibility.md) and [known limitations](docs/known-limitations.md) before treating it as a stable release.
 
