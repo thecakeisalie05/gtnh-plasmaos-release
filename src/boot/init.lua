@@ -50,6 +50,7 @@ local ModemTransport = require("services.modem_transport")
 local Users = require("services.users")
 local FileJobs = require("services.file_jobs")
 local FileService = require("services.file_service")
+local HttpClient = require("services.http_client")
 local Packages = require("services.package_manager")
 local UpdateService = require("services.update_service")
 local Memory = require("services.memory_manager")
@@ -108,6 +109,7 @@ modem:discover()
 local fileJobs = FileJobs.new(environment.fs, {logger = log})
 local files = FileService.new(environment.fs, fileJobs, {audit = function(subject, action, detail)
   log:write("info", "audit", action, {subject = subject, detail = detail}) end})
+local http = HttpClient.new(components, environment.fs, {logger=log})
 local packages = Packages.new(environment.fs, {transaction = transaction, logger = log})
 packages:load()
 local updates = UpdateService.new(scheduler, environment.fs, packages)
@@ -128,6 +130,7 @@ local services = {log=log,scheduler=scheduler,events=events,ipc=ipc,capabilities
   supervisor=supervisor,components=components,registry=registry,sessions=sessions,compositor=compositor,
   notifications=notifications,telemetry=telemetry,alarms=alarms,automation=automation,network=network,
   users=users,fileJobs=fileJobs,files=files,fs=environment.fs,packages=packages,memory=memory,
+  http=http,
   integrations=integrations,config=config,transaction=transaction,apps=apps,desktop=desktop,
   computer=environment.computer,unicode=(pcall(require,"unicode") and require("unicode") or nil),firstRun=firstRun,
   logSink=logSink,updates=updates,modem=modem}

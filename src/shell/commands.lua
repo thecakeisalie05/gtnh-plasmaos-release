@@ -1,5 +1,6 @@
 local Shell = {}
 Shell.__index = Shell
+local unpack = table.unpack or unpack
 
 local function words(line)
   local out, index = {}, 1
@@ -24,28 +25,130 @@ local function tabulate(rows)
   return out
 end
 
+local function normalize(path, base)
+  path = tostring(path or "")
+  if path == "" then path = "." end
+  if path:sub(1, 1) ~= "/" then path = tostring(base or "/") .. "/" .. path end
+  local parts = {}
+  for part in path:gmatch("[^/]+") do
+    if part == ".." then table.remove(parts)
+    elseif part ~= "." and part ~= "" then parts[#parts + 1] = part end
+  end
+  return "/" .. table.concat(parts, "/")
+end
+
 function Shell.new(services)
   return setmetatable({s = services, aliases = {ll = "ls", tm = "tasks"}}, Shell)
+end
+
+function Shell:cwd(session)
+  if not session then return "/home/player" end
+  session.cwd = normalize(session.cwd or "/home/player", "/")
+  return session.cwd
+end
+
+function Shell:resolve(path, session)
+  return normalize(path, self:cwd(session))
+end
+
+function Shell:runTask(task, api)
+  if task.kind == "download" then
+    local ok, detail = self.s.http:download(task.url, task.target, {force=task.force}, api)
+    return {ok and ("Download complete: " .. task.target .. " (" .. tostring(detail) .. " bytes)")
+      or ("error: " .. tostring(detail))}
+  elseif task.kind == "pastebin-get" then
+    local ok, detail = self.s.http:download("https://pastebin.com/raw/" .. task.id, task.target,
+      {force=task.force,maxBytes=1048576}, api)
+    return {ok and ("Paste saved: " .. task.target .. " (" .. tostring(detail) .. " bytes)")
+      or ("error: " .. tostring(detail))}
+  elseif task.kind == "pastebin-run" then
+    local target = "/tmp/plasmaos-pastebin-" .. task.id .. ".lua"
+    local ok, detail = self.s.http:download("https://pastebin.com/raw/" .. task.id, target,
+      {force=true,maxBytes=1048576}, api)
+    if not ok then return {"error: " .. tostring(detail)} end
+    local chunk, loadErr = loadfile(target)
+    if not chunk then self.s.fs.remove(target);return {"error: " .. tostring(loadErr)} end
+    local previous = _G.PLASMAOS_WGET
+    _G.PLASMAOS_WGET = function(url, path)
+      return self.s.http:download(url, path, {force=true}, api)
+    end
+    local ran = {pcall(chunk, unpack(task.args or {}))}
+    _G.PLASMAOS_WGET = previous;self.s.fs.remove(target)
+    if not ran[1] then return {"error: " .. tostring(ran[2])} end
+    return {"Pastebin program completed"}
+  end
+  return {"error: unknown background task"}
 end
 
 function Shell:execute(line, session)
   local args = words(line); local command = table.remove(args, 1)
   if not command or command == "" then return {} end
   command = self.aliases[command] or command
-  if command == "help" then return {"Commands: help ls cat mkdir rm cp mv ps kill services logs",
+  if command == "help" then return {"Commands: help cd pwd ls cat mkdir rm cp mv wget pastebin",
+    " ps kill services logs",
     " sessions displays restart-session components apps open packages automation",
     " update memory energy uptime remote clear lua reboot shutdown"}
   elseif command == "clear" then return {__clear = true}
+  elseif command == "pwd" then return {self:cwd(session)}
+  elseif command == "cd" then
+    local target
+    if args[1] == "-" then target = session and session.previousCwd or self:cwd(session)
+    else target = self:resolve(args[1] or "/home/player", session) end
+    if not self.s.fs.exists(target) then return {"error: directory not found: " .. target} end
+    if not self.s.fs.isDirectory(target) then return {"error: not a directory: " .. target} end
+    if session then
+      local previous = self:cwd(session); session.cwd = target; session.previousCwd = previous
+    end
+    return {target}
   elseif command == "ls" then
-    local entries, err = self.s.files:list(args[1] or "/", args[2] == "-a")
+    local path, hidden = self:cwd(session), false
+    for _, argument in ipairs(args) do if argument == "-a" then hidden = true else path = self:resolve(argument, session) end end
+    local entries, err = self.s.files:list(path, hidden)
     if not entries then return {"error: " .. tostring(err)} end
     local out = {}; for _, entry in ipairs(entries) do out[#out + 1] = (entry.directory and "[D] " or "    ") .. entry.name end; return out
   elseif command == "cat" then
-    local data, err = self.s.fs.read(assert(args[1], "path required")); return {data or ("error: " .. tostring(err))}
-  elseif command == "mkdir" then local ok, err = self.s.fs.makeDirectory(assert(args[1], "path required")); return {ok and "created" or ("error: " .. tostring(err))}
-  elseif command == "rm" then local ok, err = self.s.files:delete(assert(args[1], "path required"), args[2] == "--confirm"); return {ok and "deleted" or ("error: " .. tostring(err))}
-  elseif command == "mv" then local ok, err = self.s.files:move(assert(args[1]), assert(args[2])); return {ok and "moved" or ("error: " .. tostring(err))}
-  elseif command == "cp" then local job, err = self.s.files:copy(assert(args[1]), assert(args[2])); return {job and ("copy job " .. job.id) or ("error: " .. tostring(err))}
+    if not args[1] then return {"error: path required"} end
+    local data, err = self.s.fs.read(self:resolve(args[1], session)); return {data or ("error: " .. tostring(err))}
+  elseif command == "mkdir" then
+    if not args[1] then return {"error: path required"} end
+    local ok, err = self.s.fs.makeDirectory(self:resolve(args[1], session)); return {ok and "created" or ("error: " .. tostring(err))}
+  elseif command == "rm" then
+    if not args[1] then return {"error: path required"} end
+    local ok, err = self.s.files:delete(self:resolve(args[1], session), args[2] == "--confirm"); return {ok and "deleted" or ("error: " .. tostring(err))}
+  elseif command == "mv" then
+    if not args[1] or not args[2] then return {"error: source and destination required"} end
+    local ok, err = self.s.files:move(self:resolve(args[1], session), self:resolve(args[2], session)); return {ok and "moved" or ("error: " .. tostring(err))}
+  elseif command == "cp" then
+    if not args[1] or not args[2] then return {"error: source and destination required"} end
+    local job, err = self.s.files:copy(self:resolve(args[1], session), self:resolve(args[2], session)); return {job and ("copy job " .. job.id) or ("error: " .. tostring(err))}
+  elseif command == "wget" then
+    local url, target, force = nil, nil, false
+    for _, argument in ipairs(args) do
+      if argument:sub(1, 1) == "-" and not url then if argument:find("f",2,true)then force=true end
+      elseif not url then url = argument else target = argument end
+    end
+    if not url then return {"Usage: wget [-fq] <url> [file]"} end
+    if not target then local clean=url:match("^[^?]+")or url;target=clean:match("/([^/]+)$")end
+    if not target or target==""then return {"error: could not infer target filename"}end
+    target=self:resolve(target,session)
+    return {"Download started: "..target,__task={kind="download",url=url,target=target,force=force}}
+  elseif command == "pastebin" then
+    local action = args[1]
+    if action == "get" then
+      local index, force = 2, false
+      while args[index] and args[index]:sub(1, 1) == "-" do if args[index]:find("f",2,true)then force=true end;index = index + 1 end
+      local pasteId, target = args[index], args[index + 1]
+      if not pasteId or not target then return {"Usage: pastebin get [-f] <id> <file>"} end
+      if not pasteId:match("^[%w]+$")then return {"error: invalid paste ID"}end
+      target=self:resolve(target,session)
+      return {"Pastebin download started: "..target,__task={kind="pastebin-get",id=pasteId,target=target,force=force}}
+    elseif action == "run" then
+      if not args[2] then return {"Usage: pastebin run <id> [arguments...]"} end
+      if not args[2]:match("^[%w]+$")then return {"error: invalid paste ID"}end
+      local scriptArgs={};for index=3,#args do scriptArgs[#scriptArgs+1]=args[index]end
+      return {"Pastebin program started: "..args[2],__task={kind="pastebin-run",id=args[2],args=scriptArgs}}
+    end
+    return {"Usage: pastebin get [-f] <id> <file>", "       pastebin run <id> [arguments...]"}
   elseif command == "ps" then
     local rows = {{"PID", "STATE", "APP", "NAME"}}
     for _, process in ipairs(self.s.scheduler:list()) do rows[#rows + 1] = {tostring(process.pid), process.state, process.appId, process.name} end
@@ -79,7 +182,7 @@ function Shell:execute(line, session)
     local out = {}; for _, app in ipairs(self.s.apps:list()) do out[#out + 1] = app.id .. " - " .. app.name end; return out
   elseif command == "open" then
     local pid, err = self.s.apps:launch(assert(args[1], "app id required"), session.id,
-      {services = self.s, path = args[2]}); return {pid and ("started PID " .. pid) or ("error: " .. tostring(err))}
+      {services = self.s, path = args[2] and self:resolve(args[2], session)}); return {pid and ("started PID " .. pid) or ("error: " .. tostring(err))}
   elseif command == "packages" then
     local out = {}; for id, item in pairs(self.s.packages.installed) do out[#out + 1] = id .. " " .. item.version end
     if #out == 0 then out[1] = "No optional packages installed" end; table.sort(out); return out

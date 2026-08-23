@@ -21,6 +21,7 @@ function Sessions:_new(endpoint)
     id = id, user = "player", endpointId = endpoint.id, screenAddress = endpoint.screenAddress,
     keyboards = endpoint.keyboards, focusedWindow = nil, clipboard = "", notifications = {},
     cursor = {x = 1, y = 1}, pointerMode = false,
+    cwd = "/home/player", previousCwd = "/home/player",
     activeWorkspace = 1, theme = "dark", layoutScale = 1,
     locked = false, state = endpoint.connected and "active" or "disconnected",
     generation = endpoint.generation, createdAt = self.clock(), inputQueueDepth = 0,

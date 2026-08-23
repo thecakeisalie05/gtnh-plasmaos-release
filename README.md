@@ -60,6 +60,10 @@ The resulting user command is exactly:
 pastebin run <ID>
 ```
 
+The PlasmaOS Command Console includes session-local `cd`/`pwd`, relative file
+paths, `wget`, and `pastebin get|run`. This allows a bootstrap or repair to
+be launched from an already-running PlasmaOS installation as well as OpenOS.
+
 The repository cannot supply the real ID or hosting URL until someone publishes those external artifacts. Do not publish a bootstrap whose placeholders remain.
 
 ## Offline install

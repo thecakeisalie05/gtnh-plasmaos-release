@@ -56,6 +56,9 @@ local bit = portableBits()
 local DEFAULT_BASE_URL = "https://raw.githubusercontent.com/thecakeisalie05/gtnh-plasmaos-release/main"
 local MANIFEST_NAME = "manifest.txt"
 local args = {...}
+local download = _G.PLASMAOS_WGET or function(url, path)
+  return shell.execute("wget", nil, "-f", url, path)
+end
 
 local function option(name)
   for index, value in ipairs(args) do if value == name then return args[index + 1] end end
@@ -167,7 +170,7 @@ if offline then
   assert(write(manifestTemp, assert(read(source))))
 else
   assert(component.isAvailable("internet"), "Internet Card unavailable; use --offline <path>")
-  assert(shell.execute("wget", nil, "-f", baseUrl .. "/" .. MANIFEST_NAME, manifestTemp), "manifest download failed")
+  assert(download(baseUrl .. "/" .. MANIFEST_NAME, manifestTemp), "manifest download failed")
 end
 local manifest = parseManifest(assert(read(manifestTemp)))
 local selected={};local required=0
@@ -188,7 +191,7 @@ for index, file in ipairs(selected) do
   for attempt = 1, 3 do
     filesystem.remove(target)
     if offline then downloaded = write(target, assert(read(filesystem.concat(offline, file.path))))
-    else downloaded = shell.execute("wget", nil, "-f", baseUrl .. "/" .. file.path, target) end
+    else downloaded = download(baseUrl .. "/" .. file.path, target) end
     local data = downloaded and read(target)
     if data and #data == file.size and sha256(data) == file.sha256 then downloaded = true; break end
     downloaded = false

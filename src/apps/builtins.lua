@@ -69,14 +69,15 @@ end
 
 local function terminal(context)
   local s=context.services;local m={input="",output={"PlasmaOS command console","Type help to see available commands."},history={},historyIndex=1}
-  function m:render(width,height)local out={row("  Command Console",{style="header",pad=false}),row("  Session: "..context.session.user.."    History: "..#self.history,{style="toolbar",pad=false})};local room=math.max(1,height-4)
+  function m:append(values)for _,value in ipairs(values or{})do for text in tostring(value):gmatch("[^\n]+")do self.output[#self.output+1]=text end end;while #self.output>160 do table.remove(self.output,1)end end
+  function m:render(width,height)local out={row("  Command Console",{style="header",pad=false}),row("  Session: "..context.session.user.."    Directory: "..s.shell:cwd(context.session).."    History: "..#self.history,{style="toolbar",pad=false})};local room=math.max(1,height-4)
     for i=math.max(1,#self.output-room+1),#self.output do out[#out+1]=row("  "..tostring(self.output[i]):sub(1,math.max(1,width-2)),{backgroundRole="field",pad=false})end
-    out[#out+1]=row("  > "..self.input.."_",{backgroundRole="field",role="accent",pad=false});out[#out+1]=row("  Enter: run    Up/Down: history    Paste supported",{style="status",pad=false});return out end
-  function m:onEvent(event)if event.name=="clipboard"then self.input=self.input..(event.text or"")elseif event.name=="key_down"then
+    out[#out+1]=row("  "..s.shell:cwd(context.session).." > "..self.input.."_",{backgroundRole="field",role="accent",pad=false});out[#out+1]=row("  Enter: run    Up/Down: history    Paste supported",{style="status",pad=false});return out end
+  function m:onEvent(event)if event.name=="shell_result"then self:append(event.lines)elseif event.name=="clipboard"then self.input=self.input..(event.text or"")elseif event.name=="key_down"then
       if event.code==14 then self.input=self.input:sub(1,-2)elseif event.code==28 then local line=self.input;self.output[#self.output+1]="> "..line;if line~=""then self.history[#self.history+1]=line;self.historyIndex=#self.history+1 end
         local ok,result=pcall(s.shell.execute,s.shell,line,context.session);if not ok then result={"error: "..tostring(result)}end
-        if result.__clear then self.output={}else for _,value in ipairs(result)do for text in tostring(value):gmatch("[^\n]+")do self.output[#self.output+1]=text end end end
-        while #self.output>160 do table.remove(self.output,1)end;self.input=""
+        if result.__clear then self.output={}else self:append(result)end
+        if result.__task then local task=result.__task;local owner=context.api.pid();s.scheduler:spawn(function(api)local lines=s.shell:runTask(task,api);s.scheduler:send(owner,{name="shell_result",lines=lines})end,{name="Shell network job",appId="terminal",owner=context.session.user,sessionId=context.session.id})end;self.input=""
       elseif event.code==200 and#self.history>0 then self.historyIndex=math.max(1,self.historyIndex-1);self.input=self.history[self.historyIndex]
       elseif event.code==208 and#self.history>0 then self.historyIndex=math.min(#self.history+1,self.historyIndex+1);self.input=self.history[self.historyIndex]or""
       else local ch=charFrom(event,s.unicode);if ch and ch:byte()>=32 then self.input=self.input..ch end end end end;return m
