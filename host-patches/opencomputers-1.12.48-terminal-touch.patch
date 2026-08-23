@@ -1,0 +1,53 @@
+diff --git a/src/main/scala/li/cil/oc/common/component/TerminalServer.scala b/src/main/scala/li/cil/oc/common/component/TerminalServer.scala
+index 5a178960a..f368fac50 100644
+--- a/src/main/scala/li/cil/oc/common/component/TerminalServer.scala
++++ b/src/main/scala/li/cil/oc/common/component/TerminalServer.scala
+@@ -50,17 +50,27 @@ class TerminalServer(val rack: api.internal.Rack, val slot: Int) extends Environ
+     val keyboardItem = api.Items.get(Constants.BlockName.Keyboard).createItemStack(1)
+     val keyboard = api.Driver.driverFor(keyboardItem, getClass).createEnvironment(keyboardItem, this).asInstanceOf[api.internal.Keyboard]
+     keyboard.setUsableOverride(new UsabilityChecker {
+-      override def isUsableByPlayer(keyboard: api.internal.Keyboard, player: EntityPlayer) = {
+-        val stack = player.getHeldItem
+-        Delegator.subItem(stack) match {
+-          case Some(t: item.Terminal) if stack.hasTagCompound => sidedKeys.contains(stack.getTagCompound.getString(Settings.namespace + "key"))
+-          case _ => false
+-        }
+-      }
++      override def isUsableByPlayer(keyboard: api.internal.Keyboard, player: EntityPlayer) =
++        TerminalServer.this.isUsableByPlayer(player)
+     })
+     keyboard
+   }
+ 
++  /**
++   * Remote terminals are intentionally usable outside the rack's normal
++   * eight-block interaction radius. Validate the held terminal's pairing key
++   * so the text buffer can authorize pointer and clipboard packets exactly as
++   * the keyboard does.
++   */
++  def isUsableByPlayer(player: EntityPlayer): Boolean = {
++    val stack = player.getHeldItem
++    Delegator.subItem(stack) match {
++      case Some(_: item.Terminal) if stack.hasTagCompound =>
++        sidedKeys.contains(stack.getTagCompound.getString(Settings.namespace + "key"))
++      case _ => false
++    }
++  }
++
+   var range = Settings.get.maxWirelessRange(Tier.Two)
+   val keys = mutable.ListBuffer.empty[String]
+ 
+diff --git a/src/main/scala/li/cil/oc/common/component/TextBuffer.scala b/src/main/scala/li/cil/oc/common/component/TextBuffer.scala
+index b380d0b5f..71a43118e 100644
+--- a/src/main/scala/li/cil/oc/common/component/TextBuffer.scala
++++ b/src/main/scala/li/cil/oc/common/component/TextBuffer.scala
+@@ -407,6 +407,8 @@ class TextBuffer(val host: EnvironmentHost) extends prefab.ManagedEnvironment wi
+   def isUseableByPlayer(player: EntityPlayer): Boolean = host match {
+     case screen: tileentity.Screen =>
+       screen.screens.exists(s => player.getDistanceSq(s.xPosition, s.yPosition, s.zPosition) <= 64)
++    case terminal: TerminalServer =>
++      terminal.isUsableByPlayer(player)
+     case _ =>
+       player.getDistanceSq(host.xPosition, host.yPosition, host.zPosition) <= 64
+   }
+

@@ -32,6 +32,12 @@ whether `touch` signals are reaching PlasmaOS. `remote refresh` rebuilds virtual
 screen/keyboard mappings; `remote allow <MinecraftName>` authorizes a player on
 an owned computer.
 
+GTNH OpenComputers 1.12.44–1.12.55 have an upstream server-side reach regression
+that drops Remote Terminal mouse packets beyond eight blocks from the rack. See
+[`host-patches/README.md`](host-patches/README.md) for the pairing-safe fix and
+the tested 1.12.48 replacement JAR. This cannot be repaired by an in-computer
+bootstrap because the rejected packet never becomes a Lua `touch` signal.
+
 The launcher includes Settings, editor, Component Explorer, Application Center, automation, and adapter-backed Energy, inventory/fluid, redstone, AE/ME, GregTech, reactor, base, rack, robot, and navigation centers. Unsupported hardware is shown as unavailable rather than guessed.
 
 ## Build and publish

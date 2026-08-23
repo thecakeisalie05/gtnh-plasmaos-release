@@ -1,5 +1,14 @@
 # Changelog
 
+## OpenComputers Remote Terminal touch host fix
+
+- Identified the GTNH OpenComputers 1.12.44+ rack-distance check that discards
+  Remote Terminal pointer packets before Lua receives them.
+- Added a pairing-key-scoped OpenComputers patch covering touch, drag, drop,
+  scroll, clipboard, file drop, and analyzer input without weakening physical
+  screen or unpaired-terminal checks.
+- Built and tested an exact-version 1.12.48 replacement JAR for GTNH 2.9.b2.
+
 ## 0.1.0-alpha — 2026-08-22
 
 - Added transactional installer, immutable version activation, boot-attempt recovery, safe shell, and last-known-good selection.

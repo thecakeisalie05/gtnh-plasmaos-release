@@ -14,7 +14,10 @@ Documented signal identity used by the router:
 Terminal Server screen/keyboard associations are refreshed on availability
 changes and once more when an unknown input address is first observed. Remote
 Terminal mouse and keyboard events are OpenComputers checked signals: on an
-owned machine, the Minecraft player must appear in `computer.users()`.
+owned machine, the Minecraft player must appear in `computer.users()`. GTNH
+OpenComputers 1.12.44 through 1.12.55 additionally reject pointer packets beyond
+eight blocks from the rack before Lua sees them. Use the pairing-key-scoped host
+patch in `host-patches/` for real Remote Terminal touch at wireless range.
 
 References: GTNewHorizons/OpenComputers, MightyPirates/OpenComputers `master-MC1.7.10`, and the OpenComputers Signals documentation.
 
