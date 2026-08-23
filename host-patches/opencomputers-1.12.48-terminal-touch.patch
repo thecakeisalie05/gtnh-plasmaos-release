@@ -2,7 +2,7 @@ diff --git a/src/main/scala/li/cil/oc/common/component/TerminalServer.scala b/sr
 index 5a178960a..f368fac50 100644
 --- a/src/main/scala/li/cil/oc/common/component/TerminalServer.scala
 +++ b/src/main/scala/li/cil/oc/common/component/TerminalServer.scala
-@@ -50,17 +50,27 @@ class TerminalServer(val rack: api.internal.Rack, val slot: Int) extends Environ
+@@ -50,13 +50,8 @@ class TerminalServer(val rack: api.internal.Rack, val slot: Int) extends Environ
      val keyboardItem = api.Items.get(Constants.BlockName.Keyboard).createItemStack(1)
      val keyboard = api.Driver.driverFor(keyboardItem, getClass).createEnvironment(keyboardItem, this).asInstanceOf[api.internal.Keyboard]
      keyboard.setUsableOverride(new UsabilityChecker {
@@ -18,7 +18,7 @@ index 5a178960a..f368fac50 100644
      })
      keyboard
    }
- 
+@@ -64,2 +59,17 @@ class TerminalServer(val rack: api.internal.Rack, val slot: Int) extends Environ
 +  /**
 +   * Remote terminals are intentionally usable outside the rack's normal
 +   * eight-block interaction radius. Validate the held terminal's pairing key
@@ -36,7 +36,6 @@ index 5a178960a..f368fac50 100644
 +
    var range = Settings.get.maxWirelessRange(Tier.Two)
    val keys = mutable.ListBuffer.empty[String]
- 
 diff --git a/src/main/scala/li/cil/oc/common/component/TextBuffer.scala b/src/main/scala/li/cil/oc/common/component/TextBuffer.scala
 index b380d0b5f..71a43118e 100644
 --- a/src/main/scala/li/cil/oc/common/component/TextBuffer.scala
@@ -50,4 +49,3 @@ index b380d0b5f..71a43118e 100644
      case _ =>
        player.getDistanceSq(host.xPosition, host.yPosition, host.zPosition) <= 64
    }
-
