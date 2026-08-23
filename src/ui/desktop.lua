@@ -179,6 +179,18 @@ function Desktop:_toast(commands, dirty, endpoint, session, colors)
   clippedText(commands,dirty,x+1,y+1,tostring(toast.item.message):sub(1,width-2),colors.foreground,colors.panel)
 end
 
+function Desktop:_pointer(commands, dirty, endpoint, session, colors)
+  if not session.pointerMode then return end
+  local cursor = session.cursor or {x = 1, y = 1}
+  cursor.x = math.max(1, math.min(endpoint.width, cursor.x or 1))
+  cursor.y = math.max(1, math.min(endpoint.height, cursor.y or 1))
+  local rect = intersection(dirty, {x = cursor.x, y = cursor.y, w = 1, h = 1})
+  if rect then
+    append(commands, {op = "fill", x = cursor.x, y = cursor.y, w = 1, h = 1,
+      char = "+", foreground = colors.chromeText, background = colors.error})
+  end
+end
+
 function Desktop:build(endpoint, session, regions)
   local colors = Theme.get(session.theme)
   local commands = {}
@@ -206,6 +218,7 @@ function Desktop:build(endpoint, session, regions)
     self:_panel(commands, dirty, endpoint, session, colors)
     self:_toast(commands,dirty,endpoint,session,colors)
     self:_overlay(commands, dirty, endpoint, session, colors)
+    self:_pointer(commands, dirty, endpoint, session, colors)
   end
   return commands
 end
@@ -260,6 +273,47 @@ function Desktop:globalShortcut(session, event)
     end
     if event.code == 56 then modifiers.alt = true; return true end
     if event.code == 29 then modifiers.ctrl = true; return true end
+    if event.code == 67 then
+      session.pointerMode = not session.pointerMode
+      if session.pointerMode then
+        local endpoint = self.registry:get(session.endpointId)
+        local focused = session.windowManager.windows[session.focusedWindow]
+        if endpoint then
+          session.cursor = focused and {
+            x = math.max(1, math.min(endpoint.width, math.floor(focused.x + focused.w / 2))),
+            y = math.max(1, math.min(endpoint.height, math.floor(focused.y + focused.h / 2)))
+          } or {x = math.max(1, math.floor(endpoint.width / 2)),
+            y = math.max(1, math.floor(endpoint.height / 2))}
+        end
+      end
+      self:request(session)
+      return true
+    end
+    if session.pointerMode then
+      local endpoint = self.registry:get(session.endpointId)
+      if not endpoint then return true end
+      local cursor = session.cursor or {x = 1, y = 1}; session.cursor = cursor
+      local oldX, oldY = cursor.x, cursor.y
+      if event.code == 203 then cursor.x = math.max(1, cursor.x - 1)
+      elseif event.code == 205 then cursor.x = math.min(endpoint.width, cursor.x + 1)
+      elseif event.code == 200 then cursor.y = math.max(1, cursor.y - 1)
+      elseif event.code == 208 then cursor.y = math.min(endpoint.height, cursor.y + 1)
+      elseif event.code == 28 or event.code == 57 then
+        self:handle(session, {name = "touch", x = cursor.x, y = cursor.y,
+          button = 0, player = event.player, synthetic = true})
+      elseif event.code == 201 or event.code == 209 then
+        self:handle(session, {name = "scroll", x = cursor.x, y = cursor.y,
+          button = event.code == 201 and 1 or -1, player = event.player, synthetic = true})
+      elseif event.code == 1 then
+        session.pointerMode = false
+        self:request(session)
+      else return true end
+      if cursor.x ~= oldX or cursor.y ~= oldY then
+        self:request(session, {x = oldX, y = oldY, w = 1, h = 1})
+        self:request(session, {x = cursor.x, y = cursor.y, w = 1, h = 1})
+      end
+      return true
+    end
     if modifiers.alt and event.code == 15 then session.windowManager:cycle(); return true end
     if modifiers.ctrl and (event.char == 108 or event.char == 76) then session.locked=true;self:request(session);return true end
     if event.code == 59 then self:toggleLauncher(session); return true end
@@ -276,6 +330,10 @@ end
 
 function Desktop:handle(session, event)
   local endpoint = self.registry:get(session.endpointId)
+  if (event.name == "touch" or event.name == "drag" or event.name == "drop"
+    or event.name == "scroll") and event.x and event.y then
+    session.cursor = {x = event.x, y = event.y}
+  end
   if event.name == "touch" and endpoint and event.y == endpoint.height then
     if event.x <= 12 then self:toggleLauncher(session); return end
     local taskX, taskWidth = math.min(12, endpoint.width) + 2, 14

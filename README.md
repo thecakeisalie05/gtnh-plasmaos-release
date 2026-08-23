@@ -20,6 +20,8 @@ No component address is compiled in. Screens, keyboards, GPUs, modems, and GTNH 
 - `F2`: Terminal
 - `F3`: File Explorer
 - `F4`: System Monitor
+- `F9`: keyboard pointer mode for Remote Terminals (arrows move, Enter/Space click,
+  Page Up/Page Down scroll, Esc exits)
 - `Alt+Tab`: cycle windows
 - `F12`: render/input diagnostics overlay
 - Click title-bar controls to minimize, maximize/restore, or close. Drag title bars and the lower-right cell to move/resize.

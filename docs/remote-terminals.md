@@ -16,4 +16,9 @@ Bounds: 128 raw events, 48 normalized input events per session, 12 damage fragme
 
 The System Monitor Sessions/Performance views and `F12` overlay expose session, screen, generation, resolution, queue depths, endpoint state, and render errors. The watchdog classifies scheduler-healthy pending damage as a display stall and raw-without-normalized input as routing trouble. `restart-session <id>` rebuilds only that session.
 
+If a modded client forwards Remote Terminal keyboard events but drops mouse events,
+press `F9` for the session-local software pointer. Arrow keys move it, Enter or Space
+clicks, Page Up/Page Down scrolls, and Escape returns the keyboard to applications.
+This fallback does not replace or disable normal OpenComputers touch input.
+
 The automated suite covers 50 reconnects, two-session routing, a 1,000-event drag flood, stale frame rejection, and GPU error containment. The live RT-01–RT-10 matrix remains mandatory in [hardware compatibility](hardware-compatibility.md).

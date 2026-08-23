@@ -20,7 +20,8 @@ function Sessions:_new(endpoint)
   local session = {
     id = id, user = "player", endpointId = endpoint.id, screenAddress = endpoint.screenAddress,
     keyboards = endpoint.keyboards, focusedWindow = nil, clipboard = "", notifications = {},
-    cursor = {x = 1, y = 1}, activeWorkspace = 1, theme = "dark", layoutScale = 1,
+    cursor = {x = 1, y = 1}, pointerMode = false,
+    activeWorkspace = 1, theme = "dark", layoutScale = 1,
     locked = false, state = endpoint.connected and "active" or "disconnected",
     generation = endpoint.generation, createdAt = self.clock(), inputQueueDepth = 0,
   }
@@ -63,6 +64,7 @@ function Sessions:restart(id)
     return WindowManager.new(item, {logger = self.logger})
   end)(session)
   session.focusedWindow, session.clipboard, session.notifications = nil, "", {}
+  session.cursor, session.pointerMode = {x = 1, y = 1}, false
   endpoint.generation = endpoint.generation + 1
   session.generation, session.state = endpoint.generation, endpoint.connected and "active" or "disconnected"
   if oldManager and oldManager.closeAll then oldManager:closeAll("session restart") end
